@@ -16,9 +16,9 @@ module SitetorFilter
         .listable_topics
         .where(category_id: allowed_category_ids)
 
-      topics = apply_range(topics, SitetorFilter::FIELD_GIA, :gia_min, :gia_max, cast: "bigint")
-      topics = apply_range(topics, SitetorFilter::FIELD_MAT_TIEN, :mt_min, :mt_max, cast: "float")
-      topics = apply_range(topics, SitetorFilter::FIELD_DIEN_TICH, :dt_min, :dt_max, cast: "float")
+      topics = apply_range(topics, SitetorFilter::FIELD_GIA, :gia_min, :gia_max)
+      topics = apply_range(topics, SitetorFilter::FIELD_MAT_TIEN, :mt_min, :mt_max)
+      topics = apply_range(topics, SitetorFilter::FIELD_DIEN_TICH, :dt_min, :dt_max)
 
       total = topics.count
       topics = topics.order(bumped_at: :desc).offset(page * per).limit(per)
@@ -41,18 +41,21 @@ module SitetorFilter
       end
     end
 
-    def apply_range(scope, field, min_key, max_key, cast:)
+    def apply_range(scope, field, min_key, max_key)
       min = params[min_key]
       max = params[max_key]
       return scope if min.blank? && max.blank?
 
+      # numeric (không phải bigint) để không tràn với giá trị rác;
+      # regex loại giá trị không phải số trước khi CAST.
       scope = scope.joins(<<~SQL)
         INNER JOIN topic_custom_fields tcf_#{field}
           ON tcf_#{field}.topic_id = topics.id
           AND tcf_#{field}.name = '#{field}'
+          AND tcf_#{field}.value ~ '^\\d+(\\.\\d+)?$'
       SQL
-      scope = scope.where("CAST(tcf_#{field}.value AS #{cast}) >= ?", min.to_f) if min.present?
-      scope = scope.where("CAST(tcf_#{field}.value AS #{cast}) <= ?", max.to_f) if max.present?
+      scope = scope.where("CAST(tcf_#{field}.value AS numeric) >= ?", min.to_f) if min.present?
+      scope = scope.where("CAST(tcf_#{field}.value AS numeric) <= ?", max.to_f) if max.present?
       scope
     end
 

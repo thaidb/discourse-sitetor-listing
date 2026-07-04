@@ -32,23 +32,31 @@ module SitetorFilter
     # --- Giá ---------------------------------------------------------------
     # "5 tỷ", "5,5 ty", "5 tỷ 500", "gia ban 12 ti", "25 triệu/tháng", "25tr/thang",
     # "gia thue 3.500 usd", "3000$/thang"
+    # Giá hợp lý: 100 nghìn (thuê rẻ nhất) .. 20.000 tỷ — ngoài khoảng coi là rác
+    GIA_MIN_HOP_LY = 100_000
+    GIA_MAX_HOP_LY = 20_000_000_000_000
+
     def extract_price(t, usd_rate: DEFAULT_USD_RATE)
       # X tỷ Y (triệu)  vd "5 tỷ 500"
       if (m = t.match(/(#{NUM})\s*(?:ty|ti)\b(?:\s*(\d{1,3})\b(?!\s*(?:m2|m\b|%)))?/))
         ty = to_f(m[1])
         trieu = m[2] ? m[2].to_f : 0
-        return (ty * 1_000_000_000 + trieu * 1_000_000).round
+        return clamp_price((ty * 1_000_000_000 + trieu * 1_000_000).round)
       end
       # X triệu / X tr  (thuê theo tháng hoặc giá triệu)
       if (m = t.match(/(#{NUM})\s*(?:trieu|tr)\b/))
-        return (to_f(m[1]) * 1_000_000).round
+        return clamp_price((to_f(m[1]) * 1_000_000).round)
       end
       # USD: "3.500 usd", "3500$", "$3500"
       if (m = t.match(/(?:\$\s*)(\d{3,6})\b/) || t.match(/(\d{1,3}(?:[.,]\d{3})*|\d{3,6})\s*(?:usd|\$)/))
         usd = m[1].gsub(/[.,]/, "").to_i
-        return usd * usd_rate if usd >= 100 # tránh nhầm số nhỏ
+        return clamp_price(usd * usd_rate) if usd >= 100 # tránh nhầm số nhỏ
       end
       nil
+    end
+
+    def clamp_price(vnd)
+      vnd.between?(GIA_MIN_HOP_LY, GIA_MAX_HOP_LY) ? vnd : nil
     end
 
     # --- Mặt tiền ----------------------------------------------------------

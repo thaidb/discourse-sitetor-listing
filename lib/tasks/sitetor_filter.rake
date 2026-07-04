@@ -11,6 +11,21 @@ task "sitetor_filter:backfill" => :environment do
   done = 0
   hit = 0
 
+  # Dọn giá trị rác từ các lần backfill trước (không phải số, hoặc giá ngoài khoảng hợp lý)
+  cleaned = TopicCustomField
+    .where(name: [SitetorFilter::FIELD_GIA, SitetorFilter::FIELD_MAT_TIEN, SitetorFilter::FIELD_DIEN_TICH])
+    .where.not("value ~ '^\\d+(\\.\\d+)?$'")
+    .delete_all
+  cleaned += TopicCustomField
+    .where(name: SitetorFilter::FIELD_GIA)
+    .where(
+      "CAST(value AS numeric) < ? OR CAST(value AS numeric) > ?",
+      SitetorFilter::Parser::GIA_MIN_HOP_LY,
+      SitetorFilter::Parser::GIA_MAX_HOP_LY,
+    )
+    .delete_all
+  puts "Đã dọn #{cleaned} giá trị rác." if cleaned > 0
+
   puts "Backfill #{total} topics trong categories #{cat_ids.inspect}..."
 
   scope.find_each do |topic|

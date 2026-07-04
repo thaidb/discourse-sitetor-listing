@@ -34,6 +34,13 @@ class ParserTest < Minitest::Test
     assert_nil P.parse("Liên hệ 0901234567 chính chủ")[:gia]
   end
 
+  def test_gia_phi_ly_bi_loai
+    # số điện thoại dính chữ "tỷ" hoặc giá troll → nil, không được lọt vào DB
+    assert_nil P.parse("giá 0901234567 tỷ")[:gia]
+    assert_nil P.parse("bán 999999999 tỷ")[:gia]
+    assert_equal 20_000_000_000_000, P.parse("tòa nhà 20000 tỷ")[:gia]
+  end
+
   # --- Mặt tiền ---
   def test_mat_tien
     assert_in_delta 6.0, P.parse("nhà mặt tiền 6m đường lớn")[:mat_tien]
