@@ -59,7 +59,7 @@ after_initialize do
     end
   end
 
-  # Trang /bds (Ember) + API filter /bds/filter.json
+  # Trang /listing (Ember) + API filter /listing/filter.json
   require_relative "app/controllers/sitetor_filter/page_controller"
   require_relative "app/controllers/sitetor_filter/filter_controller"
 
@@ -68,5 +68,5 @@ after_initialize do
     get "/filter" => "filter#index"
   end
 
-  Discourse::Application.routes.append { mount ::SitetorFilter::Engine, at: "/bds" }
+  Discourse::Application.routes.append { mount ::SitetorFilter::Engine, at: "/listing" }
 end

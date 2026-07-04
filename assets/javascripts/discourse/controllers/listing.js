@@ -3,7 +3,7 @@ import { action } from "@ember/object";
 import { service } from "@ember/service";
 import { tracked } from "@glimmer/tracking";
 
-export default class BdsController extends Controller {
+export default class ListingController extends Controller {
   @service siteSettings;
 
   queryParams = [

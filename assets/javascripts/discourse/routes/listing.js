@@ -1,7 +1,7 @@
 import DiscourseRoute from "discourse/routes/discourse";
 import { ajax } from "discourse/lib/ajax";
 
-export default class BdsRoute extends DiscourseRoute {
+export default class ListingRoute extends DiscourseRoute {
   queryParams = {
     gia_min: { refreshModel: true },
     gia_max: { refreshModel: true },
@@ -14,6 +14,6 @@ export default class BdsRoute extends DiscourseRoute {
   };
 
   model(params) {
-    return ajax("/bds/filter.json", { data: params });
+    return ajax("/listing/filter.json", { data: params });
   }
 }
