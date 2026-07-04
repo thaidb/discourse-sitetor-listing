@@ -1,8 +1,11 @@
 import Controller from "@ember/controller";
 import { action } from "@ember/object";
+import { service } from "@ember/service";
 import { tracked } from "@glimmer/tracking";
 
 export default class BdsController extends Controller {
+  @service siteSettings;
+
   queryParams = [
     "gia_min",
     "gia_max",

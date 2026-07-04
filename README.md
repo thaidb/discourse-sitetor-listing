@@ -10,7 +10,7 @@ trên toàn bộ tin đăng, hiển thị **bảng so sánh** tại trang `/bds`
   `DT 100m2`, `5x20`...), lưu vào topic custom fields dạng số.
 - Tin mới / sửa bài đầu → parse tự động (hook `topic_created`, `post_edited`).
 - Tin cũ → backfill 1 lần bằng rake task.
-- API `GET /sitetor-bds/filter.json?gia_min=&gia_max=&mt_min=&mt_max=&dt_min=&dt_max=&category_id=&page=`
+- API `GET /bds/filter.json?gia_min=&gia_max=&mt_min=&mt_max=&dt_min=&dt_max=&category_id=&page=`
 - Trang `/bds`: thanh lọc min–max (giá nhập theo **triệu**) + bảng 5 cột, mobile cuộn ngang.
 
 ## Cài đặt (server tự host, Docker chuẩn Discourse)

@@ -59,16 +59,14 @@ after_initialize do
     end
   end
 
-  # API filter: GET /sitetor-bds/filter.json
+  # Trang /bds (Ember) + API filter /bds/filter.json
+  require_relative "app/controllers/sitetor_bds/page_controller"
   require_relative "app/controllers/sitetor_bds/filter_controller"
 
   SitetorBds::Engine.routes.draw do
+    get "/" => "page#index"
     get "/filter" => "filter#index"
   end
 
-  Discourse::Application.routes.append do
-    mount ::SitetorBds::Engine, at: "/sitetor-bds"
-    # Full page load /bds boot Ember app; Ember route "bds" đảm nhận render
-    get "/bds" => "list#latest", constraints: { format: "html" }
-  end
+  Discourse::Application.routes.append { mount ::SitetorBds::Engine, at: "/bds" }
 end

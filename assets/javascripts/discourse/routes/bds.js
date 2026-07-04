@@ -14,6 +14,6 @@ export default class BdsRoute extends DiscourseRoute {
   };
 
   model(params) {
-    return ajax("/sitetor-bds/filter.json", { data: params });
+    return ajax("/bds/filter.json", { data: params });
   }
 }
