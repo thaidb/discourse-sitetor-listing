@@ -126,6 +126,12 @@ after_initialize do
     end
   end
 
+  # Category type "Listing" trong wizard /new-category/setup
+  if respond_to?(:register_category_type)
+    require_relative "app/services/sitetor_filter/categories/types/listing"
+    reloadable_patch { register_category_type(SitetorFilter::Categories::Types::Listing) }
+  end
+
   # Trang /listing (Ember) + API filter/facets
   require_relative "app/controllers/sitetor_filter/page_controller"
   require_relative "app/controllers/sitetor_filter/filter_controller"

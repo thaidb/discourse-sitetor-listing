@@ -5,3 +5,8 @@ en:
     sitetor_filter_demand_categories: "Category IDs of DEMANDS (Cần mua/Cần thuê) that show the recommend-listing button (pipe-separated)"
     sitetor_filter_usd_rate: "USD to VND exchange rate used when parsing USD prices"
     sitetor_filter_page_size: "Number of listings per page on /listing"
+  category_types:
+    sitetor_listing:
+      name: "Listing"
+      title: "listing"
+      description: "Property listings (Sell/Rent) with the /listing property filter — price, frontage, area, address."

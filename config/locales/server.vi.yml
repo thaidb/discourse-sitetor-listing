@@ -1,0 +1,12 @@
+vi:
+  site_settings:
+    sitetor_filter_enabled: "Bật plugin Sitetor Filter"
+    sitetor_filter_categories: "ID các category TIN ĐĂNG (Bán/Cho thuê) được lọc tại /listing (ngăn cách bằng |)"
+    sitetor_filter_demand_categories: "ID các category NHU CẦU (Cần mua/Cần thuê) hiện nút giới thiệu (ngăn cách bằng |)"
+    sitetor_filter_usd_rate: "Tỷ giá USD→VND khi parse giá USD"
+    sitetor_filter_page_size: "Số tin mỗi trang trên /listing"
+  category_types:
+    sitetor_listing:
+      name: "Listing"
+      title: "listing"
+      description: "Tin đăng bất động sản (Bán/Cho thuê) — gắn bộ lọc chuyên dụng /listing: giá, mặt tiền, diện tích, địa chỉ."
