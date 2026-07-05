@@ -3,6 +3,7 @@ import { fn } from "@ember/helper";
 import { on } from "@ember/modifier";
 import DButton from "discourse/components/d-button";
 import { i18n } from "discourse-i18n";
+import BdsMultiSelect from "discourse/plugins/discourse-sitetor-filter/discourse/components/bds-multi-select";
 
 // 25000000 → "25 tr" ; 5500000000 → "5,5 tỷ"
 function formatGia(vnd) {
@@ -30,72 +31,119 @@ export default <template>
     <h1><a href="/listing" class="bds-home-link">{{i18n "sitetor_filter.title"}}</a></h1>
 
     <div class="bds-filters">
-      <div class="bds-filter-group bds-filter-q">
-        <Input
-          @value={{@controller.fQ}}
-          placeholder={{i18n "sitetor_filter.tu_khoa"}}
-          {{on "keydown" @controller.onQKeydown}}
+      <div class="bds-filter-row">
+        <div class="bds-filter-group bds-filter-q">
+          <Input
+            @value={{@controller.fQ}}
+            placeholder={{i18n "sitetor_filter.tu_khoa"}}
+            {{on "keydown" @controller.onQKeydown}}
+          />
+        </div>
+
+        <div class="bds-filter-group">
+          <label>{{i18n "sitetor_filter.loai_tin"}}</label>
+          <select {{on "change" (fn @controller.updateField "fCategoryId")}}>
+            <option value="" selected={{eq @controller.fCategoryId ""}}>
+              {{i18n "sitetor_filter.tat_ca"}}
+            </option>
+            {{#each @controller.categoryOptions as |c|}}
+              <option value={{c.id}} selected={{eq @controller.fCategoryId c.id}}>{{c.name}}</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.loai_san_pham"}}
+          @options={{@controller.facets.loai}}
+          @selected={{@controller.sLoai}}
+          @onChange={{fn @controller.setSelection "sLoai"}}
+        />
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.tinh_thanh"}}
+          @options={{@controller.facets.tinh}}
+          @selected={{@controller.sTinh}}
+          @onChange={{fn @controller.setSelection "sTinh"}}
+        />
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.quan_huyen"}}
+          @options={{@controller.facets.quan}}
+          @selected={{@controller.sQuan}}
+          @onChange={{fn @controller.setSelection "sQuan"}}
+          @searchable={{true}}
+        />
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.phuong_xa"}}
+          @options={{@controller.facets.phuong}}
+          @selected={{@controller.sPhuong}}
+          @onChange={{fn @controller.setSelection "sPhuong"}}
+          @searchable={{true}}
+        />
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.duong_pho"}}
+          @options={{@controller.facets.duong}}
+          @selected={{@controller.sDuong}}
+          @onChange={{fn @controller.setSelection "sDuong"}}
+          @searchable={{true}}
+        />
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.vi_tri"}}
+          @options={{@controller.facets.vi_tri}}
+          @selected={{@controller.sViTri}}
+          @onChange={{fn @controller.setSelection "sViTri"}}
+        />
+        <BdsMultiSelect
+          @label={{i18n "sitetor_filter.huong"}}
+          @options={{@controller.facets.huong}}
+          @selected={{@controller.sHuong}}
+          @onChange={{fn @controller.setSelection "sHuong"}}
         />
       </div>
 
-      <div class="bds-filter-group">
-        <label>{{i18n "sitetor_filter.loai"}}</label>
-        <select {{on "change" (fn @controller.updateField "fCategoryId")}}>
-          <option value="" selected={{eq @controller.fCategoryId ""}}>
-            {{i18n "sitetor_filter.tat_ca"}}
-          </option>
-          {{#each @controller.categoryOptions as |c|}}
-            <option value={{c.id}} selected={{eq @controller.fCategoryId c.id}}>{{c.name}}</option>
-          {{/each}}
-        </select>
-      </div>
+      <div class="bds-filter-row">
+        <div class="bds-filter-group">
+          <label>{{i18n "sitetor_filter.gia"}}</label>
+          <Input @value={{@controller.fGiaMin}} @type="number" placeholder={{i18n "sitetor_filter.tu"}} />
+          <span>–</span>
+          <Input @value={{@controller.fGiaMax}} @type="number" placeholder={{i18n "sitetor_filter.den"}} />
+          <select {{on "change" (fn @controller.updateField "fGiaUnit")}}>
+            <option value="trieu" selected={{eq @controller.fGiaUnit "trieu"}}>{{i18n "sitetor_filter.trieu"}}</option>
+            <option value="ty" selected={{eq @controller.fGiaUnit "ty"}}>{{i18n "sitetor_filter.ty"}}</option>
+            <option value="usd" selected={{eq @controller.fGiaUnit "usd"}}>USD</option>
+          </select>
+        </div>
 
-      <div class="bds-filter-group">
-        <label>{{i18n "sitetor_filter.gia"}} ({{i18n "sitetor_filter.trieu"}})</label>
-        <Input @value={{@controller.fGiaMin}} @type="number" placeholder="min" />
-        <span>–</span>
-        <Input @value={{@controller.fGiaMax}} @type="number" placeholder="max" />
-      </div>
+        <div class="bds-filter-group">
+          <label>{{i18n "sitetor_filter.mat_tien"}} (m)</label>
+          <Input @value={{@controller.fMtMin}} @type="number" placeholder="min" />
+          <span>–</span>
+          <Input @value={{@controller.fMtMax}} @type="number" placeholder="max" />
+        </div>
 
-      <div class="bds-filter-group">
-        <label>{{i18n "sitetor_filter.mat_tien"}} (m)</label>
-        <Input @value={{@controller.fMtMin}} @type="number" placeholder="min" />
-        <span>–</span>
-        <Input @value={{@controller.fMtMax}} @type="number" placeholder="max" />
-      </div>
+        <div class="bds-filter-group">
+          <label>{{i18n "sitetor_filter.dien_tich"}} (m²)</label>
+          <Input @value={{@controller.fDtMin}} @type="number" placeholder="min" />
+          <span>–</span>
+          <Input @value={{@controller.fDtMax}} @type="number" placeholder="max" />
+        </div>
 
-      <div class="bds-filter-group">
-        <label>{{i18n "sitetor_filter.dien_tich"}} (m²)</label>
-        <Input @value={{@controller.fDtMin}} @type="number" placeholder="min" />
-        <span>–</span>
-        <Input @value={{@controller.fDtMax}} @type="number" placeholder="max" />
-      </div>
+        <div class="bds-filter-group">
+          <label>{{i18n "sitetor_filter.sap_xep"}}</label>
+          <select {{on "change" (fn @controller.updateField "fSort")}}>
+            <option value="new" selected={{eq @controller.fSort "new"}}>{{i18n "sitetor_filter.moi_nhat"}}</option>
+            <option value="price_asc" selected={{eq @controller.fSort "price_asc"}}>{{i18n "sitetor_filter.gia_tang"}}</option>
+            <option value="price_desc" selected={{eq @controller.fSort "price_desc"}}>{{i18n "sitetor_filter.gia_giam"}}</option>
+            <option value="area_desc" selected={{eq @controller.fSort "area_desc"}}>{{i18n "sitetor_filter.dt_lon"}}</option>
+          </select>
+        </div>
 
-      <div class="bds-filter-group">
-        <label>{{i18n "sitetor_filter.sap_xep"}}</label>
-        <select {{on "change" (fn @controller.updateField "fSort")}}>
-          <option value="new" selected={{eq @controller.fSort "new"}}>
-            {{i18n "sitetor_filter.moi_nhat"}}
-          </option>
-          <option value="price_asc" selected={{eq @controller.fSort "price_asc"}}>
-            {{i18n "sitetor_filter.gia_tang"}}
-          </option>
-          <option value="price_desc" selected={{eq @controller.fSort "price_desc"}}>
-            {{i18n "sitetor_filter.gia_giam"}}
-          </option>
-          <option value="area_desc" selected={{eq @controller.fSort "area_desc"}}>
-            {{i18n "sitetor_filter.dt_lon"}}
-          </option>
-        </select>
+        <DButton
+          @action={{@controller.applyFilter}}
+          @icon="magnifying-glass"
+          @label="sitetor_filter.loc"
+          class="btn-primary"
+        />
+        <DButton @action={{@controller.resetFilter}} @label="sitetor_filter.xoa_loc" />
       </div>
-
-      <DButton
-        @action={{@controller.applyFilter}}
-        @icon="magnifying-glass"
-        @label="sitetor_filter.loc"
-        class="btn-primary"
-      />
-      <DButton @action={{@controller.resetFilter}} @label="sitetor_filter.xoa_loc" />
     </div>
 
     <p class="bds-total">
@@ -107,28 +155,32 @@ export default <template>
       <table class="bds-table">
         <thead>
           <tr>
-            <th>{{i18n "sitetor_filter.tin"}}</th>
+            <th>ID</th>
+            <th>{{i18n "sitetor_filter.loai_san_pham"}}</th>
+            <th>{{i18n "sitetor_filter.so_nha"}}</th>
+            <th>{{i18n "sitetor_filter.duong_pho"}}</th>
+            <th>{{i18n "sitetor_filter.phuong_xa"}}</th>
+            <th>{{i18n "sitetor_filter.quan_huyen"}}</th>
             <th>{{i18n "sitetor_filter.gia"}}</th>
             <th>{{i18n "sitetor_filter.mat_tien"}}</th>
-            <th>{{i18n "sitetor_filter.dien_tich"}}</th>
-            <th>{{i18n "sitetor_filter.tags"}}</th>
           </tr>
         </thead>
         <tbody>
           {{#each @controller.topics as |t|}}
             <tr>
-              <td class="bds-title">
-                <a href="/t/{{t.slug}}/{{t.id}}">{{t.title}}</a>
+              <td class="bds-num">
+                <a href="/t/{{t.slug}}/{{t.id}}" title={{t.title}}>{{t.id}}</a>
               </td>
+              <td>{{orDash t.loai}}</td>
+              <td class="bds-num">{{orDash t.so_nha}}</td>
+              <td><a href="/t/{{t.slug}}/{{t.id}}" title={{t.title}}>{{orDash t.duong}}</a></td>
+              <td>{{orDash t.phuong}}</td>
+              <td>{{orDash t.quan}}</td>
               <td class="bds-num">{{formatGia t.gia}}</td>
               <td class="bds-num">{{orDash t.mat_tien}}</td>
-              <td class="bds-num">{{orDash t.dien_tich}}</td>
-              <td class="bds-tags">
-                {{#each t.tags as |tag|}}<span class="bds-tag">{{tag}}</span>{{/each}}
-              </td>
             </tr>
           {{else}}
-            <tr><td colspan="5">{{i18n "sitetor_filter.khong_co"}}</td></tr>
+            <tr><td colspan="8">{{i18n "sitetor_filter.khong_co"}}</td></tr>
           {{/each}}
         </tbody>
       </table>

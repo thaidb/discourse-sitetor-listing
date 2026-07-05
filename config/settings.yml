@@ -14,7 +14,7 @@ plugins:
     client: true
   sitetor_filter_usd_rate:
     default: 26000
-    client: false
+    client: true
   sitetor_filter_page_size:
     default: 30
     client: true

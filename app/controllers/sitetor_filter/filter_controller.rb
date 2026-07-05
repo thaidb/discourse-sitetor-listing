@@ -30,6 +30,7 @@ module SitetorFilter
       topics = apply_range(topics, SitetorFilter::FIELD_GIA, :gia_min, :gia_max)
       topics = apply_range(topics, SitetorFilter::FIELD_MAT_TIEN, :mt_min, :mt_max)
       topics = apply_range(topics, SitetorFilter::FIELD_DIEN_TICH, :dt_min, :dt_max)
+      topics = apply_multi_filters(topics)
 
       total = topics.count
       topics = apply_sort(topics).offset(page * per).limit(per)
@@ -42,7 +43,63 @@ module SitetorFilter
       }
     end
 
+    # GET /listing/facets.json — giá trị + số lượng cho các dropdown multi-select.
+    # Cascade: truyền quan=Quận 1,Quận 3 để lấy phường/đường trong các quận đó.
+    def facets
+      base = Topic.visible.listable_topics.where(category_id: allowed_category_ids)
+
+      quan_filter = csv_param(:quan)
+      cascade = {}
+      if quan_filter.any?
+        cascade_scope = filter_by_field(base, SitetorFilter::FIELD_QUAN, quan_filter)
+        cascade = {
+          phuong: facet_counts(cascade_scope, SitetorFilter::FIELD_PHUONG),
+          duong: facet_counts(cascade_scope, SitetorFilter::FIELD_DUONG),
+        }
+      end
+
+      render json: {
+        loai: facet_counts(base, SitetorFilter::FIELD_LOAI),
+        vi_tri: facet_counts(base, SitetorFilter::FIELD_VI_TRI),
+        huong: facet_counts(base, SitetorFilter::FIELD_HUONG),
+        tinh: facet_counts(base, SitetorFilter::FIELD_TINH),
+        quan: facet_counts(base, SitetorFilter::FIELD_QUAN),
+        phuong: cascade[:phuong] || [],
+        duong: cascade[:duong] || [],
+      }
+    end
+
     private
+
+    def csv_param(key)
+      params[key].to_s.split(",").map(&:strip).reject(&:blank?)
+    end
+
+    def filter_by_field(scope, field, values)
+      scope.joins(<<~SQL).where("mf_#{field}.value IN (?)", values)
+        INNER JOIN topic_custom_fields mf_#{field}
+          ON mf_#{field}.topic_id = topics.id
+          AND mf_#{field}.name = '#{field}'
+      SQL
+    end
+
+    def apply_multi_filters(scope)
+      SitetorFilter::MULTI_FILTERS.each do |param, field|
+        values = csv_param(param)
+        scope = filter_by_field(scope, field, values) if values.any?
+      end
+      scope
+    end
+
+    def facet_counts(scope, field)
+      TopicCustomField
+        .where(name: field, topic_id: scope.select(:id))
+        .group(:value)
+        .order(Arel.sql("COUNT(*) DESC"))
+        .limit(500)
+        .count
+        .map { |value, count| { value: value, count: count } }
+    end
 
     def allowed_category_ids
       ids = SiteSetting.sitetor_filter_categories.split("|").map(&:to_i)
@@ -109,6 +166,14 @@ module SitetorFilter
         gia: cf[SitetorFilter::FIELD_GIA]&.to_i,
         mat_tien: cf[SitetorFilter::FIELD_MAT_TIEN]&.to_f,
         dien_tich: cf[SitetorFilter::FIELD_DIEN_TICH]&.to_f,
+        loai: cf[SitetorFilter::FIELD_LOAI],
+        vi_tri: cf[SitetorFilter::FIELD_VI_TRI],
+        huong: cf[SitetorFilter::FIELD_HUONG],
+        so_nha: cf[SitetorFilter::FIELD_SO_NHA],
+        duong: cf[SitetorFilter::FIELD_DUONG],
+        phuong: cf[SitetorFilter::FIELD_PHUONG],
+        quan: cf[SitetorFilter::FIELD_QUAN],
+        tinh: cf[SitetorFilter::FIELD_TINH],
       }
     end
   end

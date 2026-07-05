@@ -32,15 +32,8 @@ task "sitetor_filter:backfill" => :environment do
     first_post = topic.first_post
     next unless first_post
 
-    parsed = SitetorFilter::Parser.parse(
-      "#{topic.title} #{first_post.raw}",
-      usd_rate: SiteSetting.sitetor_filter_usd_rate,
-    )
-
-    if parsed.values.any?
-      topic.custom_fields[SitetorFilter::FIELD_GIA] = parsed[:gia] if parsed[:gia]
-      topic.custom_fields[SitetorFilter::FIELD_MAT_TIEN] = parsed[:mat_tien] if parsed[:mat_tien]
-      topic.custom_fields[SitetorFilter::FIELD_DIEN_TICH] = parsed[:dien_tich] if parsed[:dien_tich]
+    # dùng chung logic với hook realtime (giá/MT/DT + loại/vị trí/hướng + địa chỉ)
+    if SitetorFilter::Extract.apply(topic, "#{topic.title} #{first_post.raw}")
       topic.save_custom_fields(true)
       hit += 1
     end
