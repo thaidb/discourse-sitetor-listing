@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
-require_relative "../lib/sitetor_filter/parser"
+require_relative "../lib/sitetor_listing/parser"
 
 class ParserTest < Minitest::Test
-  P = SitetorFilter::Parser
+  P = SitetorListing::Parser
 
   # --- Giá ---
   def test_gia_ty

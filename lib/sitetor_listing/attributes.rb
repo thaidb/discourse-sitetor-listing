@@ -2,7 +2,7 @@
 
 # Phân loại thuộc tính tin BĐS từ keyword (không cần catalog):
 # loại sản phẩm, vị trí, hướng. Pure Ruby, test độc lập.
-module SitetorFilter
+module SitetorListing
   module Attributes
     LOAI = [
       ["Văn phòng", /van\s*phong|office/],

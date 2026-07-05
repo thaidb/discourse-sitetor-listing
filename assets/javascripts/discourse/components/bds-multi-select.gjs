@@ -50,7 +50,7 @@ export default class BdsMultiSelect extends Component {
           <input
             type="text"
             class="bds-ms-search"
-            placeholder={{i18n "sitetor_filter.tim_nhanh"}}
+            placeholder={{i18n "sitetor_listing.tim_nhanh"}}
             {{on "input" this.updateFilter}}
           />
         {{/if}}
@@ -68,7 +68,7 @@ export default class BdsMultiSelect extends Component {
               </label>
             </li>
           {{else}}
-            <li class="bds-ms-empty">{{i18n "sitetor_filter.khong_co_lua_chon"}}</li>
+            <li class="bds-ms-empty">{{i18n "sitetor_listing.khong_co_lua_chon"}}</li>
           {{/each}}
         </ul>
       </div>

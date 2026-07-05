@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-module SitetorFilter
+module SitetorListing
   # /listing (trang Ember) + /listing/<slug-filter> (SEO filter pages).
   # Bot (Googlebot...) nhận HTML thật: title/H1/meta/canonical + danh sách tin;
   # người thật nhận app shell để Ember render trang filter với bộ lọc gắn sẵn.
   class PageController < ::ApplicationController
-    requires_plugin SitetorFilter::PLUGIN_NAME
+    requires_plugin SitetorListing::PLUGIN_NAME
     skip_before_action :check_xhr
 
     def index
@@ -14,7 +14,7 @@ module SitetorFilter
 
     def seo
       segments = params[:filters].to_s.split("/").reject(&:blank?)
-      parsed = SitetorFilter::SeoSlugs.default.parse(segments, category_slugs: category_slug_map)
+      parsed = SitetorListing::SeoSlugs.default.parse(segments, category_slugs: category_slug_map)
       raise Discourse::NotFound unless parsed
 
       if use_crawler_layout?
@@ -28,7 +28,7 @@ module SitetorFilter
 
     def base_categories
       @base_categories ||=
-        Category.where(id: SiteSetting.sitetor_filter_categories.split("|").map(&:to_i))
+        Category.where(id: SiteSetting.sitetor_listing_categories.split("|").map(&:to_i))
     end
 
     def category_slug_map
@@ -36,15 +36,15 @@ module SitetorFilter
     end
 
     def crawler_html(parsed)
-      slugs = SitetorFilter::SeoSlugs.default
-      per = SiteSetting.sitetor_filter_page_size
+      slugs = SitetorListing::SeoSlugs.default
+      per = SiteSetting.sitetor_listing_page_size
       page = parsed[:page].to_i
       cat = parsed[:category_id] && base_categories.find { |c| c.id == parsed[:category_id] }
 
       multi = {}
       %i[loai vi_tri huong quan phuong duong].each { |k| multi[k.to_s] = parsed[k] ? [parsed[k]] : [] }
-      ids = SitetorFilter.with_descendants(cat ? [cat.id] : base_categories.map(&:id))
-      result = SitetorFilter::TopicFilter.run({ multi: multi, page: page }, ids, per: per)
+      ids = SitetorListing.with_descendants(cat ? [cat.id] : base_categories.map(&:id))
+      result = SitetorListing::TopicFilter.run({ multi: multi, page: page }, ids, per: per)
 
       title_core = slugs.title(
         category_name: cat&.name, page: page,
@@ -58,7 +58,7 @@ module SitetorFilter
       e = ->(s) { ERB::Util.html_escape(s.to_s) }
 
       items = result[:topics].map do |t|
-        row = SitetorFilter::TopicFilter.serialize(t)
+        row = SitetorListing::TopicFilter.serialize(t)
         gia = row[:gia] ? (row[:gia] >= 1e9 ? "#{(row[:gia] / 1e9.to_f).round(2)} tỷ" : "#{(row[:gia] / 1e6.to_f).round(1)} triệu") : nil
         meta = [row[:loai], row[:duong] && "đường #{row[:duong]}", row[:quan], gia, row[:dien_tich] && "#{row[:dien_tich]} m²"].compact.join(" · ")
         "<li><a href=\"#{Discourse.base_url}/t/#{e.call(t.slug)}/#{t.id}\">#{e.call(t.title)}</a>#{meta.present? ? " — #{e.call(meta)}" : ""}</li>"

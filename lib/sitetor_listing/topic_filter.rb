@@ -2,12 +2,12 @@
 
 # Query lọc topic dùng chung cho FilterController (JSON) và PageController#seo
 # (HTML cho crawler). Nhận hash filter đã chuẩn hoá, trả {total:, topics:}.
-module SitetorFilter
+module SitetorListing
   module TopicFilter
     SORTS = {
-      "price_asc" => [SitetorFilter::FIELD_GIA, "ASC"],
-      "price_desc" => [SitetorFilter::FIELD_GIA, "DESC"],
-      "area_desc" => [SitetorFilter::FIELD_DIEN_TICH, "DESC"],
+      "price_asc" => [SitetorListing::FIELD_GIA, "ASC"],
+      "price_desc" => [SitetorListing::FIELD_GIA, "DESC"],
+      "area_desc" => [SitetorListing::FIELD_DIEN_TICH, "DESC"],
     }.freeze
 
     module_function
@@ -21,12 +21,12 @@ module SitetorFilter
         scope = scope.where("topics.title ILIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(f[:q])}%")
       end
 
-      scope = range(scope, SitetorFilter::FIELD_GIA, f[:gia_min], f[:gia_max])
-      scope = range(scope, SitetorFilter::FIELD_MAT_TIEN, f[:mt_min], f[:mt_max])
-      scope = range(scope, SitetorFilter::FIELD_DIEN_TICH, f[:dt_min], f[:dt_max])
+      scope = range(scope, SitetorListing::FIELD_GIA, f[:gia_min], f[:gia_max])
+      scope = range(scope, SitetorListing::FIELD_MAT_TIEN, f[:mt_min], f[:mt_max])
+      scope = range(scope, SitetorListing::FIELD_DIEN_TICH, f[:dt_min], f[:dt_max])
 
       (f[:multi] || {}).each do |param, values|
-        field = SitetorFilter::MULTI_FILTERS[param]
+        field = SitetorListing::MULTI_FILTERS[param]
         scope = by_field(scope, field, values) if field && values.present?
       end
 
@@ -82,17 +82,17 @@ module SitetorFilter
         created_at: t.created_at,
         bumped_at: t.bumped_at,
         tags: t.tags.pluck(:name),
-        gia: cf[SitetorFilter::FIELD_GIA]&.to_i,
-        mat_tien: cf[SitetorFilter::FIELD_MAT_TIEN]&.to_f,
-        dien_tich: cf[SitetorFilter::FIELD_DIEN_TICH]&.to_f,
-        loai: cf[SitetorFilter::FIELD_LOAI],
-        vi_tri: cf[SitetorFilter::FIELD_VI_TRI],
-        huong: cf[SitetorFilter::FIELD_HUONG],
-        so_nha: cf[SitetorFilter::FIELD_SO_NHA],
-        duong: cf[SitetorFilter::FIELD_DUONG],
-        phuong: cf[SitetorFilter::FIELD_PHUONG],
-        quan: cf[SitetorFilter::FIELD_QUAN],
-        tinh: cf[SitetorFilter::FIELD_TINH],
+        gia: cf[SitetorListing::FIELD_GIA]&.to_i,
+        mat_tien: cf[SitetorListing::FIELD_MAT_TIEN]&.to_f,
+        dien_tich: cf[SitetorListing::FIELD_DIEN_TICH]&.to_f,
+        loai: cf[SitetorListing::FIELD_LOAI],
+        vi_tri: cf[SitetorListing::FIELD_VI_TRI],
+        huong: cf[SitetorListing::FIELD_HUONG],
+        so_nha: cf[SitetorListing::FIELD_SO_NHA],
+        duong: cf[SitetorListing::FIELD_DUONG],
+        phuong: cf[SitetorListing::FIELD_PHUONG],
+        quan: cf[SitetorListing::FIELD_QUAN],
+        tinh: cf[SitetorListing::FIELD_TINH],
       }
     end
   end

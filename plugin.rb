@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-# name: discourse-sitetor-filter
+# name: discourse-sitetor-listing
 # about: Filter BĐS đa tiêu chí (giá, mặt tiền, diện tích, loại SP, địa chỉ) + bảng so sánh cho Sitetor LMS
 # version: 0.2.0
 # authors: Sitetor
 # url: https://lms.sitetor.com
 
-enabled_site_setting :sitetor_filter_enabled
+enabled_site_setting :sitetor_listing_enabled
 
-register_asset "stylesheets/sitetor-filter.scss"
+register_asset "stylesheets/sitetor-listing.scss"
 
-module ::SitetorFilter
-  PLUGIN_NAME = "discourse-sitetor-filter"
+module ::SitetorListing
+  PLUGIN_NAME = "discourse-sitetor-listing"
   FIELD_GIA = "bds_gia"
   FIELD_MAT_TIEN = "bds_mat_tien"
   FIELD_DIEN_TICH = "bds_dien_tich"
@@ -49,17 +49,17 @@ module ::SitetorFilter
   }.freeze
 end
 
-require_relative "lib/sitetor_filter/parser"
-require_relative "lib/sitetor_filter/attributes"
-require_relative "lib/sitetor_filter/address_matcher"
-require_relative "lib/sitetor_filter/topic_filter"
-require_relative "lib/sitetor_filter/seo_slugs"
+require_relative "lib/sitetor_listing/parser"
+require_relative "lib/sitetor_listing/attributes"
+require_relative "lib/sitetor_listing/address_matcher"
+require_relative "lib/sitetor_listing/topic_filter"
+require_relative "lib/sitetor_listing/seo_slugs"
 
 after_initialize do
-  module ::SitetorFilter
+  module ::SitetorListing
     class Engine < ::Rails::Engine
       engine_name PLUGIN_NAME
-      isolate_namespace SitetorFilter
+      isolate_namespace SitetorListing
     end
 
     # Mở rộng danh sách category gồm cả sub + sub-sub (hỗ trợ gộp về
@@ -72,29 +72,29 @@ after_initialize do
   end
 
   # Custom fields dạng số trên topic
-  register_topic_custom_field_type(SitetorFilter::FIELD_GIA, :integer)
-  register_topic_custom_field_type(SitetorFilter::FIELD_MAT_TIEN, :float)
-  register_topic_custom_field_type(SitetorFilter::FIELD_DIEN_TICH, :float)
-  SitetorFilter::STRING_FIELDS.each { |f| register_topic_custom_field_type(f, :string) }
+  register_topic_custom_field_type(SitetorListing::FIELD_GIA, :integer)
+  register_topic_custom_field_type(SitetorListing::FIELD_MAT_TIEN, :float)
+  register_topic_custom_field_type(SitetorListing::FIELD_DIEN_TICH, :float)
+  SitetorListing::STRING_FIELDS.each { |f| register_topic_custom_field_type(f, :string) }
 
   # Tự động parse khi có topic mới / sửa bài đầu trong các category cấu hình
-  on(:post_edited) { |post| SitetorFilter::Extract.from_post(post) if post.is_first_post? }
-  on(:topic_created) { |topic, _opts, _user| SitetorFilter::Extract.from_post(topic.first_post) if topic.first_post }
+  on(:post_edited) { |post| SitetorListing::Extract.from_post(post) if post.is_first_post? }
+  on(:topic_created) { |topic, _opts, _user| SitetorListing::Extract.from_post(topic.first_post) if topic.first_post }
 
-  module ::SitetorFilter
+  module ::SitetorListing
     module Extract
       # parse cả listing (Bán/Cho thuê) lẫn nhu cầu (Cần mua/Cần thuê) —
       # dữ liệu nhu cầu phục vụ plugin discourse-sitetor-mapping (/mapping)
       def self.category_ids
         ids = (
-          SiteSetting.sitetor_filter_categories.split("|") +
-            SiteSetting.sitetor_filter_demand_categories.split("|")
+          SiteSetting.sitetor_listing_categories.split("|") +
+            SiteSetting.sitetor_listing_demand_categories.split("|")
         ).map(&:to_i).uniq
-        SitetorFilter.with_descendants(ids)
+        SitetorListing.with_descendants(ids)
       end
 
       def self.from_post(post)
-        return unless SiteSetting.sitetor_filter_enabled
+        return unless SiteSetting.sitetor_listing_enabled
         topic = post&.topic
         return unless topic && category_ids.include?(topic.category_id)
 
@@ -104,17 +104,17 @@ after_initialize do
 
       # gán field từ text — dùng chung cho hook realtime và rake backfill
       def self.apply(topic, text)
-        parsed = SitetorFilter::Parser.parse(text, usd_rate: SiteSetting.sitetor_filter_usd_rate)
+        parsed = SitetorListing::Parser.parse(text, usd_rate: SiteSetting.sitetor_listing_usd_rate)
         topic.custom_fields[FIELD_GIA] = parsed[:gia] if parsed[:gia]
         topic.custom_fields[FIELD_MAT_TIEN] = parsed[:mat_tien] if parsed[:mat_tien]
         topic.custom_fields[FIELD_DIEN_TICH] = parsed[:dien_tich] if parsed[:dien_tich]
 
-        attrs = SitetorFilter::Attributes.extract(text)
+        attrs = SitetorListing::Attributes.extract(text)
         topic.custom_fields[FIELD_LOAI] = attrs[:loai] if attrs[:loai]
         topic.custom_fields[FIELD_VI_TRI] = attrs[:vi_tri] if attrs[:vi_tri]
         topic.custom_fields[FIELD_HUONG] = attrs[:huong] if attrs[:huong]
 
-        addr = SitetorFilter::AddressMatcher.default.match(text)
+        addr = SitetorListing::AddressMatcher.default.match(text)
         topic.custom_fields[FIELD_SO_NHA] = addr[:so_nha] if addr[:so_nha]
         topic.custom_fields[FIELD_DUONG] = addr[:duong] if addr[:duong]
         topic.custom_fields[FIELD_PHUONG] = addr[:phuong] if addr[:phuong]
@@ -128,15 +128,15 @@ after_initialize do
 
   # Category type "Listing" trong wizard /new-category/setup
   if respond_to?(:register_category_type)
-    require_relative "app/services/sitetor_filter/categories/types/listing"
-    reloadable_patch { register_category_type(SitetorFilter::Categories::Types::Listing) }
+    require_relative "app/services/sitetor_listing/categories/types/listing"
+    reloadable_patch { register_category_type(SitetorListing::Categories::Types::Listing) }
   end
 
   # Trang /listing (Ember) + API filter/facets
-  require_relative "app/controllers/sitetor_filter/page_controller"
-  require_relative "app/controllers/sitetor_filter/filter_controller"
+  require_relative "app/controllers/sitetor_listing/page_controller"
+  require_relative "app/controllers/sitetor_listing/filter_controller"
 
-  SitetorFilter::Engine.routes.draw do
+  SitetorListing::Engine.routes.draw do
     get "/" => "page#index"
     get "/filter" => "filter#index"
     get "/facets" => "filter#facets"
@@ -144,5 +144,5 @@ after_initialize do
     get "/*filters" => "page#seo", format: false
   end
 
-  Discourse::Application.routes.append { mount ::SitetorFilter::Engine, at: "/listing" }
+  Discourse::Application.routes.append { mount ::SitetorListing::Engine, at: "/listing" }
 end

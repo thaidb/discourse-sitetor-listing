@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
-require_relative "../lib/sitetor_filter/seo_slugs"
+require_relative "../lib/sitetor_listing/seo_slugs"
 
 class SeoSlugsTest < Minitest::Test
-  S = SitetorFilter::SeoSlugs.default
+  S = SitetorListing::SeoSlugs.default
   CATS = { "ban" => 3722, "cho-thue-nha-dat" => 3412 }.freeze
 
   def test_parse_day_du

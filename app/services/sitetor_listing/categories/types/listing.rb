@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 # Category type "Listing" trong wizard tạo category (/new-category/setup):
-# tạo category kiểu này → ID tự thêm vào setting sitetor_filter_categories,
+# tạo category kiểu này → ID tự thêm vào setting sitetor_listing_categories,
 # tức là tin trong đó (và mọi sub-category) được parse + lọc tại /listing.
-module SitetorFilter
+module SitetorListing
   module Categories
     module Types
       class Listing < ::Categories::Types::Base
@@ -11,11 +11,11 @@ module SitetorFilter
 
         class << self
           def enable_plugin
-            SiteSetting.sitetor_filter_enabled = true
+            SiteSetting.sitetor_listing_enabled = true
           end
 
           def plugin_enabled?
-            SiteSetting.sitetor_filter_enabled
+            SiteSetting.sitetor_listing_enabled
           end
 
           def category_matches?(category)
@@ -67,12 +67,12 @@ module SitetorFilter
           private
 
           def setting_ids
-            SiteSetting.sitetor_filter_categories.split("|").map(&:to_i).reject(&:zero?)
+            SiteSetting.sitetor_listing_categories.split("|").map(&:to_i).reject(&:zero?)
           end
 
           def update_setting(ids, guardian)
             SiteSetting.set_and_log(
-              "sitetor_filter_categories",
+              "sitetor_listing_categories",
               ids.uniq.join("|"),
               guardian&.user || Discourse.system_user,
             )

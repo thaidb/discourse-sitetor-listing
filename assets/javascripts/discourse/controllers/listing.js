@@ -79,7 +79,7 @@ export default class ListingController extends Controller {
   }
 
   get perPage() {
-    return this.model?.per_page || this.siteSettings.sitetor_filter_page_size || 30;
+    return this.model?.per_page || this.siteSettings.sitetor_listing_page_size || 30;
   }
 
   get totalPages() {
@@ -91,7 +91,7 @@ export default class ListingController extends Controller {
   }
 
   get categoryOptions() {
-    const ids = (this.siteSettings.sitetor_filter_categories || "")
+    const ids = (this.siteSettings.sitetor_listing_categories || "")
       .split("|")
       .map((s) => parseInt(s, 10))
       .filter(Boolean);
@@ -147,7 +147,7 @@ export default class ListingController extends Controller {
     }
     const rate =
       this.fGiaUnit === "usd"
-        ? this.siteSettings.sitetor_filter_usd_rate || 26000
+        ? this.siteSettings.sitetor_listing_usd_rate || 26000
         : GIA_UNITS[this.fGiaUnit] || 1e6;
     return Number(v) * rate;
   }

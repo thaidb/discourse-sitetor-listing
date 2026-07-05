@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
-require_relative "../lib/sitetor_filter/address_matcher"
-require_relative "../lib/sitetor_filter/attributes"
+require_relative "../lib/sitetor_listing/address_matcher"
+require_relative "../lib/sitetor_listing/attributes"
 
 class AddressMatcherTest < Minitest::Test
   # dùng catalog THẬT đóng gói trong plugin
-  M = SitetorFilter::AddressMatcher.default
+  M = SitetorListing::AddressMatcher.default
 
   def test_quan_so
     r = M.match("Cho thuê nhà mặt tiền Quận 3 giá tốt")
@@ -77,7 +77,7 @@ class AddressMatcherTest < Minitest::Test
 end
 
 class AttributesTest < Minitest::Test
-  A = SitetorFilter::Attributes
+  A = SitetorListing::Attributes
 
   def test_loai
     assert_equal "Văn phòng", A.extract("cho thuê văn phòng 100m2")[:loai]

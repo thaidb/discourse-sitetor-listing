@@ -28,7 +28,7 @@ export default class GioiThieuListingModal extends Component {
   }
 
   get listingCategoryIds() {
-    return (this.siteSettings.sitetor_filter_categories || "")
+    return (this.siteSettings.sitetor_listing_categories || "")
       .split("|")
       .map((s) => parseInt(s, 10))
       .filter(Boolean);
@@ -65,7 +65,7 @@ export default class GioiThieuListingModal extends Component {
         type: "POST",
         data: {
           topic_id: this.args.model.topic.id,
-          raw: `${i18n("sitetor_filter.gioi_thieu")}:\n\n${window.location.origin}/t/${chosen.slug}/${chosen.id}`,
+          raw: `${i18n("sitetor_listing.gioi_thieu")}:\n\n${window.location.origin}/t/${chosen.slug}/${chosen.id}`,
         },
       });
       this.args.closeModal();
@@ -79,7 +79,7 @@ export default class GioiThieuListingModal extends Component {
 
   <template>
     <DModal
-      @title={{i18n "sitetor_filter.gioi_thieu_title"}}
+      @title={{i18n "sitetor_listing.gioi_thieu_title"}}
       @closeModal={{@closeModal}}
       class="gioi-thieu-modal"
     >
@@ -87,7 +87,7 @@ export default class GioiThieuListingModal extends Component {
         {{#if (eq this.listings null)}}
           <p>…</p>
         {{else if this.listings.length}}
-          <p>{{i18n "sitetor_filter.gioi_thieu_hint"}}</p>
+          <p>{{i18n "sitetor_listing.gioi_thieu_hint"}}</p>
           <ul class="gioi-thieu-list">
             {{#each this.listings as |t|}}
               <li>
@@ -104,17 +104,17 @@ export default class GioiThieuListingModal extends Component {
             {{/each}}
           </ul>
         {{else}}
-          <p>{{i18n "sitetor_filter.gioi_thieu_khong_co"}}</p>
+          <p>{{i18n "sitetor_listing.gioi_thieu_khong_co"}}</p>
         {{/if}}
       </:body>
       <:footer>
         <DButton
           @action={{this.send}}
-          @label="sitetor_filter.gioi_thieu_gui"
+          @label="sitetor_listing.gioi_thieu_gui"
           @disabled={{this.saving}}
           class="btn-primary"
         />
-        <DButton @action={{@closeModal}} @label="sitetor_filter.dong" />
+        <DButton @action={{@closeModal}} @label="sitetor_listing.dong" />
       </:footer>
     </DModal>
   </template>

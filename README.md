@@ -1,4 +1,4 @@
-# discourse-sitetor-filter
+# discourse-sitetor-listing
 
 Plugin filter BĐS min/max cho **lms.sitetor.com**: lọc theo **giá / mặt tiền / diện tích**
 trên toàn bộ tin đăng, hiển thị **bảng so sánh** tại trang `/listing`.
@@ -15,7 +15,7 @@ trên toàn bộ tin đăng, hiển thị **bảng so sánh** tại trang `/list
   (giá nhập theo **triệu**), sắp xếp (mới nhất / giá tăng / giá giảm / DT lớn),
   phân trang nhảy bước `1,2,3,4,5…10,15,20…100,200…n`, bảng so sánh mobile cuộn ngang.
 - Link sidebar "Tìm bất động sản" quay về `/listing` từ mọi trang.
-- Nút **"Giới thiệu BĐS của bạn"** dưới topic Cần mua/Cần thuê (`sitetor_filter_demand_categories`):
+- Nút **"Giới thiệu BĐS của bạn"** dưới topic Cần mua/Cần thuê (`sitetor_listing_demand_categories`):
   chọn 1 listing trong tài khoản → tự tạo reply gắn link (onebox) vào nhu cầu.
 
 ## Cài đặt (server tự host, Docker chuẩn Discourse)
@@ -27,7 +27,7 @@ trên toàn bộ tin đăng, hiển thị **bảng so sánh** tại trang `/list
    - exec:
        cd: $home/plugins
        cmd:
-         - git clone https://github.com/<ban>/discourse-sitetor-filter.git
+         - git clone https://github.com/<ban>/discourse-sitetor-listing.git
    ```
 
 3. Rebuild:
@@ -37,8 +37,8 @@ trên toàn bộ tin đăng, hiển thị **bảng so sánh** tại trang `/list
    ./launcher rebuild app
    ```
 
-4. Vào **Admin → Settings → Plugins**, kiểm tra `sitetor filter enabled` = true và
-   `sitetor filter categories` đúng ID category của bạn
+4. Vào **Admin → Settings → Plugins**, kiểm tra `sitetor listing enabled` = true và
+   `sitetor listing categories` đúng ID category của bạn
    (mặc định: `3412` Cho thuê, `3722` Bán, `3344` Cần thuê, `3698` Cần mua).
 
 5. **Backfill tin cũ** (chạy 1 lần, ~14k tin chỉ vài phút):
@@ -46,7 +46,7 @@ trên toàn bộ tin đăng, hiển thị **bảng so sánh** tại trang `/list
    ```bash
    cd /var/discourse
    ./launcher enter app
-   rake sitetor_filter:backfill
+   rake sitetor_listing:backfill
    ```
 
 6. Mở `https://lms.sitetor.com/listing` — lọc thử `Giá 50–100 triệu`, `Mặt tiền ≥ 6m`.

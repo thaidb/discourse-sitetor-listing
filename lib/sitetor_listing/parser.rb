@@ -2,7 +2,7 @@
 
 # Trích xuất giá / mặt tiền / diện tích từ text tin BĐS tiếng Việt.
 # Pure Ruby — không phụ thuộc Discourse, test được độc lập (test/parser_test.rb).
-module SitetorFilter
+module SitetorListing
   module Parser
     # Tỷ giá USD→VND dùng khi tin ghi giá bằng USD (site setting override được)
     DEFAULT_USD_RATE = 26_000

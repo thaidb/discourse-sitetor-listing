@@ -5,7 +5,7 @@ require "json"
 # Đối chiếu text tin đăng với danh mục địa chỉ (catalog.json export từ CRM):
 # tỉnh/thành → quận/huyện → đường + số nhà → phường/xã.
 # Pure Ruby, test được độc lập: AddressMatcher.new(catalog_hash).match(text)
-module SitetorFilter
+module SitetorListing
   class AddressMatcher
     DATA_PATH = File.expand_path("data/catalog.json", __dir__)
 

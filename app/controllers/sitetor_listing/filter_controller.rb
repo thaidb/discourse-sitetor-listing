@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-module SitetorFilter
+module SitetorListing
   class FilterController < ::ApplicationController
-    requires_plugin SitetorFilter::PLUGIN_NAME
+    requires_plugin SitetorListing::PLUGIN_NAME
 
     # GET /listing/filter.json
     # Cách 1 (UI): q, gia_min/max, mt_min/max, dt_min/max, loai/quan/... (CSV), category_id, sort, page
     # Cách 2 (SEO): path=ban/nha-mat-pho/quan-3/duong-vo-van-tan — parse thành bộ lọc
     def index
-      per = SiteSetting.sitetor_filter_page_size
+      per = SiteSetting.sitetor_listing_page_size
 
       if params[:path].present?
         parsed = seo_slugs.parse(params[:path].to_s.split("/").reject(&:blank?), category_slugs: category_slug_map)
@@ -19,13 +19,13 @@ module SitetorFilter
         f = filters_from_params
       end
 
-      result = SitetorFilter::TopicFilter.run(f, allowed_ids(f[:category_id]), per: per)
+      result = SitetorListing::TopicFilter.run(f, allowed_ids(f[:category_id]), per: per)
 
       render json: {
         total: result[:total],
         page: f[:page],
         per_page: per,
-        topics: result[:topics].map { |t| SitetorFilter::TopicFilter.serialize(t) },
+        topics: result[:topics].map { |t| SitetorListing::TopicFilter.serialize(t) },
         parsed: parsed && public_parsed(parsed),
         seo_base: seo_base_for(f),
         seo_title: seo_title_for(f),
@@ -39,19 +39,19 @@ module SitetorFilter
       quan_filter = csv_param(:quan)
       cascade = {}
       if quan_filter.any?
-        cascade_scope = SitetorFilter::TopicFilter.by_field(base, SitetorFilter::FIELD_QUAN, quan_filter)
+        cascade_scope = SitetorListing::TopicFilter.by_field(base, SitetorListing::FIELD_QUAN, quan_filter)
         cascade = {
-          phuong: facet_counts(cascade_scope, SitetorFilter::FIELD_PHUONG),
-          duong: facet_counts(cascade_scope, SitetorFilter::FIELD_DUONG),
+          phuong: facet_counts(cascade_scope, SitetorListing::FIELD_PHUONG),
+          duong: facet_counts(cascade_scope, SitetorListing::FIELD_DUONG),
         }
       end
 
       render json: {
-        loai: facet_counts(base, SitetorFilter::FIELD_LOAI),
-        vi_tri: facet_counts(base, SitetorFilter::FIELD_VI_TRI),
-        huong: facet_counts(base, SitetorFilter::FIELD_HUONG),
-        tinh: facet_counts(base, SitetorFilter::FIELD_TINH),
-        quan: facet_counts(base, SitetorFilter::FIELD_QUAN),
+        loai: facet_counts(base, SitetorListing::FIELD_LOAI),
+        vi_tri: facet_counts(base, SitetorListing::FIELD_VI_TRI),
+        huong: facet_counts(base, SitetorListing::FIELD_HUONG),
+        tinh: facet_counts(base, SitetorListing::FIELD_TINH),
+        quan: facet_counts(base, SitetorListing::FIELD_QUAN),
         phuong: cascade[:phuong] || [],
         duong: cascade[:duong] || [],
       }
@@ -60,11 +60,11 @@ module SitetorFilter
     private
 
     def seo_slugs
-      SitetorFilter::SeoSlugs.default
+      SitetorListing::SeoSlugs.default
     end
 
     def base_category_ids
-      SiteSetting.sitetor_filter_categories.split("|").map(&:to_i)
+      SiteSetting.sitetor_listing_categories.split("|").map(&:to_i)
     end
 
     def base_categories
@@ -78,7 +78,7 @@ module SitetorFilter
     def allowed_ids(category_id)
       ids = base_category_ids
       ids = [category_id.to_i] if category_id.present? && ids.include?(category_id.to_i)
-      SitetorFilter.with_descendants(ids)
+      SitetorListing.with_descendants(ids)
     end
 
     def csv_param(key)
@@ -91,7 +91,7 @@ module SitetorFilter
         gia_min: params[:gia_min], gia_max: params[:gia_max],
         mt_min: params[:mt_min], mt_max: params[:mt_max],
         dt_min: params[:dt_min], dt_max: params[:dt_max],
-        multi: SitetorFilter::MULTI_FILTERS.keys.to_h { |k| [k, csv_param(k)] },
+        multi: SitetorListing::MULTI_FILTERS.keys.to_h { |k| [k, csv_param(k)] },
         sort: params[:sort],
         page: params[:page].to_i,
         category_id: params[:category_id],

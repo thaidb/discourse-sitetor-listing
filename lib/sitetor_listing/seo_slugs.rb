@@ -10,7 +10,7 @@ require "json"
 #   phường: "phuong-12"/"phuong-thao-dien" | đường: "duong-vo-van-tan"
 #   vị trí: "vi-tri-mat-tien" | hướng: "huong-dong-nam"
 # Pure Ruby (catalog.json), test độc lập.
-module SitetorFilter
+module SitetorListing
   class SeoSlugs
     CATALOG_PATH = File.expand_path("data/catalog.json", __dir__)
 

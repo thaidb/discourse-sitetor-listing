@@ -1,20 +1,20 @@
 plugins:
-  sitetor_filter_enabled:
+  sitetor_listing_enabled:
     default: true
     client: true
-  sitetor_filter_categories:
+  sitetor_listing_categories:
     default: "3412|3722"
     type: list
     list_type: compact
     client: true
-  sitetor_filter_demand_categories:
+  sitetor_listing_demand_categories:
     default: "3344|3698"
     type: list
     list_type: compact
     client: true
-  sitetor_filter_usd_rate:
+  sitetor_listing_usd_rate:
     default: 26000
     client: true
-  sitetor_filter_page_size:
+  sitetor_listing_page_size:
     default: 30
     client: true
