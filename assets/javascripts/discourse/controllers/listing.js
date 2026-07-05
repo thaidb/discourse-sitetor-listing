@@ -175,27 +175,54 @@ export default class ListingController extends Controller {
     }
   }
 
-  @action
-  applyFilter() {
+  // gom bộ lọc đang nhập thành object queryParams (dùng chung cho trang
+  // /listing lẫn trang SEO — trang SEO transition sang /listing với object này)
+  collectFilterParams() {
     const num = (v) => (v === "" || v === null ? null : Number(v));
     const csv = (arr) => (arr.length ? arr.join(",") : null);
-    this.q = this.fQ || null;
-    this.gia_min = this.giaToVnd(this.fGiaMin);
-    this.gia_max = this.giaToVnd(this.fGiaMax);
-    this.mt_min = num(this.fMtMin);
-    this.mt_max = num(this.fMtMax);
-    this.dt_min = num(this.fDtMin);
-    this.dt_max = num(this.fDtMax);
-    this.category_id = this.fCategoryId || null;
-    this.sort = this.fSort === "new" ? null : this.fSort;
-    this.loai = csv(this.sLoai);
-    this.vi_tri = csv(this.sViTri);
-    this.huong = csv(this.sHuong);
-    this.tinh = csv(this.sTinh);
-    this.quan = csv(this.sQuan);
-    this.phuong = csv(this.sPhuong);
-    this.duong = csv(this.sDuong);
-    this.page = 0;
+    return {
+      q: this.fQ || null,
+      gia_min: this.giaToVnd(this.fGiaMin),
+      gia_max: this.giaToVnd(this.fGiaMax),
+      mt_min: num(this.fMtMin),
+      mt_max: num(this.fMtMax),
+      dt_min: num(this.fDtMin),
+      dt_max: num(this.fDtMax),
+      category_id: this.fCategoryId || null,
+      sort: this.fSort === "new" ? null : this.fSort,
+      loai: csv(this.sLoai),
+      vi_tri: csv(this.sViTri),
+      huong: csv(this.sHuong),
+      tinh: csv(this.sTinh),
+      quan: csv(this.sQuan),
+      phuong: csv(this.sPhuong),
+      duong: csv(this.sDuong),
+      page: 0,
+    };
+  }
+
+  // trang SEO gọi để đổ bộ lọc từ path đã parse vào UI
+  prefillFromParsed(parsed) {
+    if (!parsed) {
+      return;
+    }
+    this.fCategoryId = parsed.category_id ? String(parsed.category_id) : "";
+    this.sLoai = parsed.loai ? [parsed.loai] : [];
+    this.sViTri = parsed.vi_tri ? [parsed.vi_tri] : [];
+    this.sHuong = parsed.huong ? [parsed.huong] : [];
+    this.sQuan = parsed.quan ? [parsed.quan] : [];
+    this.sPhuong = parsed.phuong ? [parsed.phuong] : [];
+    this.sDuong = parsed.duong ? [parsed.duong] : [];
+    this.page = parsed.page || 0;
+    this.loadFacets();
+  }
+
+  @action
+  applyFilter() {
+    const p = this.collectFilterParams();
+    for (const [k, v] of Object.entries(p)) {
+      this[k] = v;
+    }
   }
 
   @action

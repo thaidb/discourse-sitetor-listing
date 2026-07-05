@@ -149,6 +149,11 @@ export default <template>
     <p class="bds-total">
       {{i18n "sitetor_filter.tong" count=@controller.total}}
       · {{i18n "sitetor_filter.trang_x_tren_y" page=@controller.currentPage total=@controller.totalPages}}
+      {{#if @controller.model.seo_base}}
+        · <a class="bds-seo-link" href="/listing/{{@controller.model.seo_base}}">
+          🔗 {{i18n "sitetor_filter.trang_seo"}}
+        </a>
+      {{/if}}
     </p>
 
     <div class="bds-table-wrap">

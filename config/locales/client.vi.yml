@@ -2,6 +2,7 @@ vi:
   js:
     sitetor_filter:
       title: "Tìm bất động sản"
+      trang_seo: "Trang SEO của bộ lọc này"
       loai_tin: "Loại tin"
       loai_san_pham: "Loại Sản Phẩm"
       tinh_thanh: "Tỉnh/Thành"

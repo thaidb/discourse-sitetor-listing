@@ -2,6 +2,7 @@ en:
   js:
     sitetor_filter:
       title: "Property Search"
+      trang_seo: "SEO page for this filter"
       loai_tin: "Category"
       loai_san_pham: "Product Type"
       tinh_thanh: "Province"

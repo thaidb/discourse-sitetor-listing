@@ -5,10 +5,7 @@
 # Chạy lại an toàn (idempotent) — chỉ ghi đè field khi parse ra giá trị.
 desc "Parse giá/mặt tiền/diện tích cho toàn bộ topic BĐS cũ"
 task "sitetor_filter:backfill" => :environment do
-  cat_ids = (
-    SiteSetting.sitetor_filter_categories.split("|") +
-      SiteSetting.sitetor_filter_demand_categories.split("|")
-  ).map(&:to_i).uniq
+  cat_ids = SitetorFilter::Extract.category_ids # đã gồm sub-category
   scope = Topic.where(category_id: cat_ids).where(deleted_at: nil)
   total = scope.count
   done = 0

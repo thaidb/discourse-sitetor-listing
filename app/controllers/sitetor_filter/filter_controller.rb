@@ -4,54 +4,42 @@ module SitetorFilter
   class FilterController < ::ApplicationController
     requires_plugin SitetorFilter::PLUGIN_NAME
 
-    SORTS = {
-      "new" => "topics.bumped_at DESC",
-      "price_asc" => :gia_asc,
-      "price_desc" => :gia_desc,
-      "area_desc" => :dt_desc,
-    }.freeze
-
     # GET /listing/filter.json
-    # Params: q (từ khóa tiêu đề) | gia_min, gia_max (VND) | mt_min, mt_max (m)
-    #         dt_min, dt_max (m2) | category_id | sort (new/price_asc/price_desc/area_desc) | page
+    # Cách 1 (UI): q, gia_min/max, mt_min/max, dt_min/max, loai/quan/... (CSV), category_id, sort, page
+    # Cách 2 (SEO): path=ban/nha-mat-pho/quan-3/duong-vo-van-tan — parse thành bộ lọc
     def index
-      page = params[:page].to_i
       per = SiteSetting.sitetor_filter_page_size
 
-      topics = Topic
-        .visible
-        .listable_topics
-        .where(category_id: allowed_category_ids)
-
-      if params[:q].present?
-        topics = topics.where("topics.title ILIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(params[:q])}%")
+      if params[:path].present?
+        parsed = seo_slugs.parse(params[:path].to_s.split("/").reject(&:blank?), category_slugs: category_slug_map)
+        raise Discourse::NotFound unless parsed
+        f = filters_from_parsed(parsed)
+      else
+        parsed = nil
+        f = filters_from_params
       end
 
-      topics = apply_range(topics, SitetorFilter::FIELD_GIA, :gia_min, :gia_max)
-      topics = apply_range(topics, SitetorFilter::FIELD_MAT_TIEN, :mt_min, :mt_max)
-      topics = apply_range(topics, SitetorFilter::FIELD_DIEN_TICH, :dt_min, :dt_max)
-      topics = apply_multi_filters(topics)
-
-      total = topics.count
-      topics = apply_sort(topics).offset(page * per).limit(per)
+      result = SitetorFilter::TopicFilter.run(f, allowed_ids(f[:category_id]), per: per)
 
       render json: {
-        total: total,
-        page: page,
+        total: result[:total],
+        page: f[:page],
         per_page: per,
-        topics: topics.map { |t| serialize_topic(t) },
+        topics: result[:topics].map { |t| SitetorFilter::TopicFilter.serialize(t) },
+        parsed: parsed && public_parsed(parsed),
+        seo_base: seo_base_for(f),
+        seo_title: seo_title_for(f),
       }
     end
 
-    # GET /listing/facets.json — giá trị + số lượng cho các dropdown multi-select.
-    # Cascade: truyền quan=Quận 1,Quận 3 để lấy phường/đường trong các quận đó.
+    # GET /listing/facets.json
     def facets
-      base = Topic.visible.listable_topics.where(category_id: allowed_category_ids)
+      base = Topic.visible.listable_topics.where(category_id: allowed_ids(nil))
 
       quan_filter = csv_param(:quan)
       cascade = {}
       if quan_filter.any?
-        cascade_scope = filter_by_field(base, SitetorFilter::FIELD_QUAN, quan_filter)
+        cascade_scope = SitetorFilter::TopicFilter.by_field(base, SitetorFilter::FIELD_QUAN, quan_filter)
         cascade = {
           phuong: facet_counts(cascade_scope, SitetorFilter::FIELD_PHUONG),
           duong: facet_counts(cascade_scope, SitetorFilter::FIELD_DUONG),
@@ -71,24 +59,91 @@ module SitetorFilter
 
     private
 
+    def seo_slugs
+      SitetorFilter::SeoSlugs.default
+    end
+
+    def base_category_ids
+      SiteSetting.sitetor_filter_categories.split("|").map(&:to_i)
+    end
+
+    def base_categories
+      @base_categories ||= Category.where(id: base_category_ids)
+    end
+
+    def category_slug_map
+      base_categories.to_h { |c| [c.slug, c.id] }
+    end
+
+    def allowed_ids(category_id)
+      ids = base_category_ids
+      ids = [category_id.to_i] if category_id.present? && ids.include?(category_id.to_i)
+      SitetorFilter.with_descendants(ids)
+    end
+
     def csv_param(key)
       params[key].to_s.split(",").map(&:strip).reject(&:blank?)
     end
 
-    def filter_by_field(scope, field, values)
-      scope.joins(<<~SQL).where("mf_#{field}.value IN (?)", values)
-        INNER JOIN topic_custom_fields mf_#{field}
-          ON mf_#{field}.topic_id = topics.id
-          AND mf_#{field}.name = '#{field}'
-      SQL
+    def filters_from_params
+      {
+        q: params[:q],
+        gia_min: params[:gia_min], gia_max: params[:gia_max],
+        mt_min: params[:mt_min], mt_max: params[:mt_max],
+        dt_min: params[:dt_min], dt_max: params[:dt_max],
+        multi: SitetorFilter::MULTI_FILTERS.keys.to_h { |k| [k, csv_param(k)] },
+        sort: params[:sort],
+        page: params[:page].to_i,
+        category_id: params[:category_id],
+      }
     end
 
-    def apply_multi_filters(scope)
-      SitetorFilter::MULTI_FILTERS.each do |param, field|
-        values = csv_param(param)
-        scope = filter_by_field(scope, field, values) if values.any?
+    def filters_from_parsed(parsed)
+      multi = {}
+      %i[loai vi_tri huong quan phuong duong].each do |k|
+        multi[k.to_s] = parsed[k] ? [parsed[k]] : []
       end
-      scope
+      {
+        multi: multi,
+        page: parsed[:page].to_i,
+        category_id: parsed[:category_id],
+      }
+    end
+
+    def public_parsed(parsed)
+      parsed.slice(:loai, :vi_tri, :huong, :quan, :phuong, :duong, :category_id).merge(page: parsed[:page].to_i)
+    end
+
+    # đường dẫn SEO (không gồm trang) khi bộ lọc quy về được 1 giá trị mỗi chiều
+    def seo_singles(f)
+      return nil if f[:q].present?
+      return nil if %i[gia_min gia_max mt_min mt_max dt_min dt_max].any? { |k| f[k].present? }
+
+      singles = {}
+      (f[:multi] || {}).each do |k, values|
+        return nil if values.length > 1
+        singles[k.to_sym] = values.first
+      end
+      return nil if singles.values.all?(&:nil?) && f[:category_id].blank?
+      singles
+    end
+
+    def seo_base_for(f)
+      singles = seo_singles(f)
+      return nil unless singles
+      cat = f[:category_id].present? ? base_categories.find { |c| c.id == f[:category_id].to_i } : nil
+      seo_slugs.build(category_slug: cat&.slug, **singles.slice(:loai, :vi_tri, :huong, :quan, :phuong, :duong))
+    end
+
+    def seo_title_for(f)
+      singles = seo_singles(f)
+      return nil unless singles
+      cat = f[:category_id].present? ? base_categories.find { |c| c.id == f[:category_id].to_i } : nil
+      seo_slugs.title(
+        category_name: cat&.name,
+        page: f[:page].to_i,
+        **singles.slice(:loai, :vi_tri, :huong, :quan, :phuong, :duong),
+      )
     end
 
     def facet_counts(scope, field)
@@ -99,82 +154,6 @@ module SitetorFilter
         .limit(500)
         .count
         .map { |value, count| { value: value, count: count } }
-    end
-
-    def allowed_category_ids
-      ids = SiteSetting.sitetor_filter_categories.split("|").map(&:to_i)
-      if params[:category_id].present? && ids.include?(params[:category_id].to_i)
-        [params[:category_id].to_i]
-      else
-        ids
-      end
-    end
-
-    def apply_range(scope, field, min_key, max_key)
-      min = params[min_key]
-      max = params[max_key]
-      return scope if min.blank? && max.blank?
-
-      # numeric (không phải bigint) để không tràn với giá trị rác;
-      # regex loại giá trị không phải số trước khi CAST.
-      scope = scope.joins(<<~SQL)
-        INNER JOIN topic_custom_fields tcf_#{field}
-          ON tcf_#{field}.topic_id = topics.id
-          AND tcf_#{field}.name = '#{field}'
-          AND tcf_#{field}.value ~ '^\\d+(\\.\\d+)?$'
-      SQL
-      scope = scope.where("CAST(tcf_#{field}.value AS numeric) >= ?", min.to_f) if min.present?
-      scope = scope.where("CAST(tcf_#{field}.value AS numeric) <= ?", max.to_f) if max.present?
-      scope
-    end
-
-    # Sort theo custom field: LEFT JOIN để tin thiếu dữ liệu vẫn hiện (xếp cuối)
-    def apply_sort(scope)
-      case SORTS[params[:sort].to_s]
-      when :gia_asc
-        sort_by_field(scope, SitetorFilter::FIELD_GIA, "ASC")
-      when :gia_desc
-        sort_by_field(scope, SitetorFilter::FIELD_GIA, "DESC")
-      when :dt_desc
-        sort_by_field(scope, SitetorFilter::FIELD_DIEN_TICH, "DESC")
-      else
-        scope.order(bumped_at: :desc)
-      end
-    end
-
-    def sort_by_field(scope, field, dir)
-      scope
-        .joins(<<~SQL)
-          LEFT JOIN topic_custom_fields sort_#{field}
-            ON sort_#{field}.topic_id = topics.id
-            AND sort_#{field}.name = '#{field}'
-            AND sort_#{field}.value ~ '^\\d+(\\.\\d+)?$'
-        SQL
-        .order(Arel.sql("CAST(sort_#{field}.value AS numeric) #{dir} NULLS LAST, topics.bumped_at DESC"))
-    end
-
-    def serialize_topic(t)
-      cf = t.custom_fields
-      {
-        id: t.id,
-        title: t.title,
-        slug: t.slug,
-        category_id: t.category_id,
-        created_at: t.created_at,
-        bumped_at: t.bumped_at,
-        tags: t.tags.pluck(:name),
-        gia: cf[SitetorFilter::FIELD_GIA]&.to_i,
-        mat_tien: cf[SitetorFilter::FIELD_MAT_TIEN]&.to_f,
-        dien_tich: cf[SitetorFilter::FIELD_DIEN_TICH]&.to_f,
-        loai: cf[SitetorFilter::FIELD_LOAI],
-        vi_tri: cf[SitetorFilter::FIELD_VI_TRI],
-        huong: cf[SitetorFilter::FIELD_HUONG],
-        so_nha: cf[SitetorFilter::FIELD_SO_NHA],
-        duong: cf[SitetorFilter::FIELD_DUONG],
-        phuong: cf[SitetorFilter::FIELD_PHUONG],
-        quan: cf[SitetorFilter::FIELD_QUAN],
-        tinh: cf[SitetorFilter::FIELD_TINH],
-      }
     end
   end
 end

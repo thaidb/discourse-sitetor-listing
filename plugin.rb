@@ -52,12 +52,22 @@ end
 require_relative "lib/sitetor_filter/parser"
 require_relative "lib/sitetor_filter/attributes"
 require_relative "lib/sitetor_filter/address_matcher"
+require_relative "lib/sitetor_filter/topic_filter"
+require_relative "lib/sitetor_filter/seo_slugs"
 
 after_initialize do
   module ::SitetorFilter
     class Engine < ::Rails::Engine
       engine_name PLUGIN_NAME
       isolate_namespace SitetorFilter
+    end
+
+    # Mở rộng danh sách category gồm cả sub + sub-sub (hỗ trợ gộp về
+    # 1 category cha Listing/Mapping với cây con bên trong)
+    def self.with_descendants(ids)
+      children = Category.where(parent_category_id: ids).pluck(:id)
+      grandchildren = Category.where(parent_category_id: children).pluck(:id)
+      (ids + children + grandchildren).uniq
     end
   end
 
@@ -76,10 +86,11 @@ after_initialize do
       # parse cả listing (Bán/Cho thuê) lẫn nhu cầu (Cần mua/Cần thuê) —
       # dữ liệu nhu cầu phục vụ plugin discourse-sitetor-mapping (/mapping)
       def self.category_ids
-        (
+        ids = (
           SiteSetting.sitetor_filter_categories.split("|") +
             SiteSetting.sitetor_filter_demand_categories.split("|")
         ).map(&:to_i).uniq
+        SitetorFilter.with_descendants(ids)
       end
 
       def self.from_post(post)
@@ -123,6 +134,8 @@ after_initialize do
     get "/" => "page#index"
     get "/filter" => "filter#index"
     get "/facets" => "filter#facets"
+    # SEO filter pages: /listing/ban/nha-mat-pho/quan-3/duong-vo-van-tan
+    get "/*filters" => "page#seo", format: false
   end
 
   Discourse::Application.routes.append { mount ::SitetorFilter::Engine, at: "/listing" }
