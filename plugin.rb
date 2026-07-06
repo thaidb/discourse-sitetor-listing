@@ -81,6 +81,28 @@ after_initialize do
   register_topic_custom_field_type(SitetorListing::FIELD_AREA, :float)
   SitetorListing::STRING_FIELDS.each { |f| register_topic_custom_field_type(f, :string) }
 
+  # Đưa 4 field ra topic list serializer — theme component
+  # sitetor-topic-list-columns dùng để vẽ cột MT/Giá/DT/Hướng
+  TOPIC_LIST_FIELDS = [
+    SitetorListing::FIELD_PRICE,
+    SitetorListing::FIELD_FRONTAGE,
+    SitetorListing::FIELD_AREA,
+    SitetorListing::FIELD_DIRECTION,
+  ]
+  TOPIC_LIST_FIELDS.each { |f| TopicList.preloaded_custom_fields << f }
+  add_to_serializer(:topic_list_item, :listing_price) do
+    object.custom_fields[SitetorListing::FIELD_PRICE]
+  end
+  add_to_serializer(:topic_list_item, :listing_frontage) do
+    object.custom_fields[SitetorListing::FIELD_FRONTAGE]
+  end
+  add_to_serializer(:topic_list_item, :listing_area) do
+    object.custom_fields[SitetorListing::FIELD_AREA]
+  end
+  add_to_serializer(:topic_list_item, :listing_direction) do
+    object.custom_fields[SitetorListing::FIELD_DIRECTION]
+  end
+
   # Tự động parse khi có topic mới / sửa bài đầu trong các category cấu hình
   on(:post_edited) { |post| SitetorListing::Extract.from_post(post) if post.is_first_post? }
   on(:topic_created) { |topic, _opts, _user| SitetorListing::Extract.from_post(topic.first_post) if topic.first_post }
