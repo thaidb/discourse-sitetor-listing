@@ -58,6 +58,7 @@ require_relative "lib/sitetor_listing/attributes"
 require_relative "lib/sitetor_listing/address_matcher"
 require_relative "lib/sitetor_listing/topic_filter"
 require_relative "lib/sitetor_listing/seo_slugs"
+require_relative "lib/sitetor_listing/discovery_filters"
 
 after_initialize do
   module ::SitetorListing
@@ -80,6 +81,9 @@ after_initialize do
   register_topic_custom_field_type(SitetorListing::FIELD_FRONTAGE, :float)
   register_topic_custom_field_type(SitetorListing::FIELD_AREA, :float)
   SitetorListing::STRING_FIELDS.each { |f| register_topic_custom_field_type(f, :string) }
+
+  # Filter topic list gốc theo query param (thanh filter sau breadcrumb)
+  SitetorListing::DiscoveryFilters.register!
 
   # Đưa 4 field ra topic list serializer — theme component
   # sitetor-topic-list-columns dùng để vẽ cột MT/Giá/DT/Hướng
