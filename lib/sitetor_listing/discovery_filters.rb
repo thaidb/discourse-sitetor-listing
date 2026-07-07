@@ -56,7 +56,7 @@ module SitetorListing
       RANGE_PARAMS.each do |param, (field_proc, op)|
         name = param.to_s.tr("_", "-")
         plugin.add_filter_custom_filter(name) do |scope, values, _guardian|
-          raw = Array(values).last.to_s
+          raw = SitetorListing::DiscoveryFilters.strip_quotes(Array(values).last.to_s)
           val = param.to_s.start_with?("price") ? parse_price(raw) : raw.to_f
           if SiteSetting.sitetor_listing_enabled && val && val > 0
             range_join(scope, field_proc.call, param, op, val)
@@ -68,7 +68,11 @@ module SitetorListing
 
       MULTI_PARAMS.each do |param, field_proc|
         plugin.add_filter_custom_filter(param.to_s) do |scope, values, _guardian|
-          list = Array(values).flat_map { |v| v.to_s.split(",") }.map(&:strip).reject(&:blank?)
+          list =
+            Array(values)
+              .flat_map { |v| SitetorListing::DiscoveryFilters.strip_quotes(v.to_s).split(",") }
+              .map(&:strip)
+              .reject(&:blank?)
           if SiteSetting.sitetor_listing_enabled && list.any?
             values_join_ci(scope, field_proc.call, param, list)
           else
@@ -76,6 +80,12 @@ module SitetorListing
           end
         end
       end
+    end
+
+    # Giá trị có ngoặc kép (type:"Nhà mặt phố") đến tay custom filter còn nguyên
+    # ngoặc — core chỉ strip trong các matcher riêng của nó.
+    def self.strip_quotes(value)
+      value.gsub(/\A["']|["']\z/, "")
     end
 
     def self.parse_price(raw)
