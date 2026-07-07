@@ -84,6 +84,8 @@ after_initialize do
 
   # Filter topic list gốc theo query param (thanh filter sau breadcrumb)
   SitetorListing::DiscoveryFilters.register!
+  # + matcher BĐS cho ngôn ngữ /filter: price-min:50tr, frontage-min:8, position:hẻm...
+  SitetorListing::DiscoveryFilters.register_topics_filter!(self)
 
   # Đưa 4 field ra topic list serializer — theme component
   # sitetor-topic-list-columns dùng để vẽ cột MT/Giá/DT/Hướng

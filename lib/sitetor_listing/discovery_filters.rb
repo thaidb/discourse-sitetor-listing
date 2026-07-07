@@ -47,6 +47,52 @@ module SitetorListing
       end
     end
 
+    # Đăng ký matcher vào ngôn ngữ /filter (TopicsFilter) — giao diện power-user,
+    # dùng chung SQL với thanh filter phía trên. Cú pháp:
+    #   /filter?q=category:listing price-min:50tr price-max:5ty frontage-min:8
+    #            area-min:100 type:"Nhà mặt phố" position:hẻm direction:đông
+    # Giá: hậu tố tr=triệu, ty/tỷ=tỷ; số trần < 100000 hiểu là TRIỆU; còn lại VND.
+    def self.register_topics_filter!(plugin)
+      RANGE_PARAMS.each do |param, (field_proc, op)|
+        name = param.to_s.tr("_", "-")
+        plugin.add_filter_custom_filter(name) do |scope, values, _guardian|
+          raw = Array(values).last.to_s
+          val = param.to_s.start_with?("price") ? parse_price(raw) : raw.to_f
+          if SiteSetting.sitetor_listing_enabled && val && val > 0
+            range_join(scope, field_proc.call, param, op, val)
+          else
+            scope
+          end
+        end
+      end
+
+      MULTI_PARAMS.each do |param, field_proc|
+        plugin.add_filter_custom_filter(param.to_s) do |scope, values, _guardian|
+          list = Array(values).flat_map { |v| v.to_s.split(",") }.map(&:strip).reject(&:blank?)
+          if SiteSetting.sitetor_listing_enabled && list.any?
+            values_join_ci(scope, field_proc.call, param, list)
+          else
+            scope
+          end
+        end
+      end
+    end
+
+    def self.parse_price(raw)
+      v = raw.to_s.downcase.strip
+      num = v.to_f
+      return nil if num <= 0
+      if v.include?("ty") || v.include?("tỷ")
+        (num * 1_000_000_000).round
+      elsif v.include?("tr")
+        (num * 1_000_000).round
+      elsif num < 100_000
+        (num * 1_000_000).round # số trần mặc định hiểu là triệu
+      else
+        num.round # VND
+      end
+    end
+
     def self.range_join(scope, field, param, op, val)
       scope.joins(<<~SQL).where("CAST(df_#{param}.value AS numeric) #{op} ?", val.to_f)
         INNER JOIN topic_custom_fields df_#{param}
@@ -61,6 +107,15 @@ module SitetorListing
         INNER JOIN topic_custom_fields df_#{param}
           ON df_#{param}.topic_id = topics.id
           AND df_#{param}.name = '#{field}'
+      SQL
+    end
+
+    # Bản không phân biệt hoa thường cho cú pháp /filter (user gõ tay position:hẻm)
+    def self.values_join_ci(scope, field, param, values)
+      scope.joins(<<~SQL).where("LOWER(df_ci_#{param}.value) IN (?)", values.map(&:downcase))
+        INNER JOIN topic_custom_fields df_ci_#{param}
+          ON df_ci_#{param}.topic_id = topics.id
+          AND df_ci_#{param}.name = '#{field}'
       SQL
     end
   end
