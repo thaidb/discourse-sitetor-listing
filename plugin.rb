@@ -87,6 +87,26 @@ after_initialize do
   # + matcher BĐS cho ngôn ngữ /filter: price-min:50tr, frontage-min:8, position:hẻm...
   SitetorListing::DiscoveryFilters.register_topics_filter!(self)
 
+  # Ghi các matcher BĐS vào danh sách gợi ý sổ xuống của trang /filter
+  # (chức năng lọc và gợi ý là 2 hệ riêng — không đăng ký thì lọc vẫn chạy
+  # nhưng user không thấy trong dropdown)
+  register_modifier(:topics_filter_options) do |results, _guardian|
+    results.concat(
+      [
+        { name: "price-min:", description: "Giá tối thiểu — 50tr, 5ty (số trần = triệu)", type: "text", priority: 1 },
+        { name: "price-max:", description: "Giá tối đa — 100tr, 5ty", type: "text", priority: 1 },
+        { name: "frontage-min:", description: "Mặt tiền tối thiểu (m)", type: "text" },
+        { name: "frontage-max:", description: "Mặt tiền tối đa (m)", type: "text" },
+        { name: "area-min:", description: "Diện tích tối thiểu (m²)", type: "text" },
+        { name: "area-max:", description: "Diện tích tối đa (m²)", type: "text" },
+        { name: "type:", description: "Loại BĐS — nhiều từ bọc ngoặc kép: type:\"Nhà mặt phố\"", type: "text" },
+        { name: "position:", description: "Vị trí: hẻm, mặt tiền, khu compound... (không phân biệt hoa thường)", type: "text" },
+        { name: "direction:", description: "Hướng: đông, tây, đông nam...", type: "text" },
+      ],
+    )
+    results
+  end
+
   # Đưa 4 field ra topic list serializer — theme component
   # sitetor-topic-list-columns dùng để vẽ cột MT/Giá/DT/Hướng
   TOPIC_LIST_FIELDS = [
