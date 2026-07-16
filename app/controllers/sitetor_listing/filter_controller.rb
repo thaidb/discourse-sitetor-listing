@@ -75,9 +75,18 @@ module SitetorListing
       base_categories.to_h { |c| [c.slug, c.id] }
     end
 
+    def demand_category_ids
+      SiteSetting.sitetor_listing_demand_categories.split("|").map(&:to_i)
+    end
+
     def allowed_ids(category_id)
       ids = base_category_ids
-      ids = [category_id.to_i] if category_id.present? && ids.include?(category_id.to_i)
+      cid = category_id.to_i
+      # Honor an explicit category_id when it belongs to the listing OR demand
+      # (mapping) trees; the default (no category_id) stays listing-only.
+      if category_id.present? && (base_category_ids + demand_category_ids).include?(cid)
+        ids = [cid]
+      end
       SitetorListing.with_descendants(ids)
     end
 
