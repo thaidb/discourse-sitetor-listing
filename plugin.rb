@@ -169,6 +169,7 @@ require_relative "lib/sitetor_listing/parser"
 require_relative "lib/sitetor_listing/attributes"
 require_relative "lib/sitetor_listing/address_matcher"
 require_relative "lib/sitetor_listing/topic_filter"
+require_relative "lib/sitetor_listing/demand_filter"
 require_relative "lib/sitetor_listing/seo_slugs"
 require_relative "lib/sitetor_listing/discovery_filters"
 
@@ -244,6 +245,49 @@ after_initialize do
   end
   add_to_serializer(:topic_list_item, :listing_direction) do
     object.custom_fields[SitetorListing::FIELD_DIRECTION]
+  end
+
+  # Field NHU CẦU cho card mặc định của category Mapping (topic list): ngân sách
+  # + diện tích (range) + khu vực (JSON array parse sẵn) để theme vẽ trong
+  # .topic-card__stats. Chỉ preload đủ field cần cho card, tránh nặng list.
+  DEMAND_LIST_FIELDS = [
+    SitetorListing::FIELD_DEMAND_TYPE,
+    SitetorListing::FIELD_BUDGET_FROM,
+    SitetorListing::FIELD_BUDGET_TO,
+    SitetorListing::FIELD_AREA_FROM,
+    SitetorListing::FIELD_AREA_TO,
+    SitetorListing::FIELD_FRONTAGE_FROM,
+    SitetorListing::FIELD_DEMAND_PROPERTY_TYPES,
+    SitetorListing::FIELD_DEMAND_PROVINCES,
+    SitetorListing::FIELD_DEMAND_DISTRICTS,
+  ]
+  DEMAND_LIST_FIELDS.each { |f| TopicList.preloaded_custom_fields << f }
+  add_to_serializer(:topic_list_item, :demand_type) do
+    object.custom_fields[SitetorListing::FIELD_DEMAND_TYPE]
+  end
+  add_to_serializer(:topic_list_item, :demand_budget_from) do
+    object.custom_fields[SitetorListing::FIELD_BUDGET_FROM]&.to_i
+  end
+  add_to_serializer(:topic_list_item, :demand_budget_to) do
+    object.custom_fields[SitetorListing::FIELD_BUDGET_TO]&.to_i
+  end
+  add_to_serializer(:topic_list_item, :demand_area_from) do
+    object.custom_fields[SitetorListing::FIELD_AREA_FROM]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_area_to) do
+    object.custom_fields[SitetorListing::FIELD_AREA_TO]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_frontage_from) do
+    object.custom_fields[SitetorListing::FIELD_FRONTAGE_FROM]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_property_types) do
+    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_PROPERTY_TYPES])
+  end
+  add_to_serializer(:topic_list_item, :demand_provinces) do
+    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_PROVINCES])
+  end
+  add_to_serializer(:topic_list_item, :demand_districts) do
+    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_DISTRICTS])
   end
 
   # Tự động parse khi có topic mới / sửa bài đầu trong các category cấu hình
@@ -345,6 +389,7 @@ after_initialize do
 
   require_relative "app/controllers/sitetor_listing/topic_info_controller"
   require_relative "app/controllers/sitetor_listing/demand_info_controller"
+  require_relative "app/controllers/sitetor_listing/demand_filter_controller"
 
   SitetorListing::Engine.routes.draw do
     get "/" => "page#index"
@@ -354,9 +399,18 @@ after_initialize do
     put "/topic-info" => "topic_info#update"
     get "/demand-info/:topic_id" => "demand_info#show"
     post "/demand-info/:topic_id" => "demand_info#update"
+    # Trang /demand (Cầu): API lọc nhu cầu + facets
+    get "/demand-filter" => "demand_filter#index"
+    get "/demand-facets" => "demand_filter#facets"
     # SEO filter pages: /listing/ban/nha-mat-pho/quan-3/duong-vo-van-tan
     get "/*filters" => "page#seo", format: false
   end
 
-  Discourse::Application.routes.append { mount ::SitetorListing::Engine, at: "/listing" }
+  # /listing = trang Cung (tin rao). /demand = trang Cầu (nhu cầu) — full-page
+  # load render app shell để Ember boot route "demand". Không đụng /mapping của
+  # plugin cũ (cutover về sau ở Phase 4).
+  Discourse::Application.routes.append do
+    mount ::SitetorListing::Engine, at: "/listing"
+    get "/demand" => "sitetor_listing/page#demand_index"
+  end
 end

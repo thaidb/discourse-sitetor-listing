@@ -12,6 +12,12 @@ module SitetorListing
       render "default/empty"
     end
 
+    # /demand — full page load: render app shell rỗng để Ember boot; route
+    # "demand" phía client đảm nhận phần còn lại (danh sách + bộ lọc nhu cầu).
+    def demand_index
+      render "default/empty"
+    end
+
     def seo
       segments = params[:filters].to_s.split("/").reject(&:blank?)
       parsed = SitetorListing::SeoSlugs.default.parse(segments, category_slugs: category_slug_map)
