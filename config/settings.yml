@@ -1,4 +1,4 @@
-plugins:
+sitetor_listing:
   sitetor_listing_enabled:
     default: true
     client: true

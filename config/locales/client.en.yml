@@ -1,4 +1,9 @@
 en:
+  admin_js:
+    admin:
+      site_settings:
+        categories:
+          sitetor_listing: "Sitetor Listing Filter"
   js:
     sitetor_listing:
       title: "Property Search"
