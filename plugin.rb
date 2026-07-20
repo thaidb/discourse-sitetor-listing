@@ -30,7 +30,9 @@ module ::SitetorListing
   FIELD_MANUAL = "listing_manual"
 
   # Field NHU CẦU (topic Cần mua/Cần thuê trong sitetor_listing_demand_categories).
-  # Loại BĐS/hướng/vị trí/địa chỉ DÙNG CHUNG field listing_* (đối xứng để ghép tin /mapping).
+  # Nhu cầu là 1 BỘ LỌC LƯU SẴN: range (ngân sách/diện tích/mặt tiền) + multi
+  # (nhiều tỉnh/quận/đường, nhiều hướng, nhiều loại) — THUỘC SỞ HỮU demand, KHÔNG
+  # dùng chung listing_* (listing_* là giá trị ĐƠN của tin rao, phục vụ filter/facet).
   FIELD_DEMAND_TYPE = "demand_type"
   FIELD_BUDGET_FROM = "budget_from"
   FIELD_BUDGET_TO = "budget_to"
@@ -41,9 +43,19 @@ module ::SitetorListing
   FIELD_FLOOR_AREA_FROM = "floor_area_from"
   FIELD_FLOOR_AREA_TO = "floor_area_to"
   FIELD_NUMBER_FLOOR = "number_floor"
+
+  # Field phân loại/khu vực của nhu cầu — mỗi field lưu JSON array (multi-value).
+  FIELD_DEMAND_PROPERTY_TYPES = "demand_property_types" # loại BĐS (nhiều)
+  FIELD_DEMAND_PROVINCES = "demand_provinces"
+  FIELD_DEMAND_DISTRICTS = "demand_districts"
+  FIELD_DEMAND_WARDS = "demand_wards"
+  FIELD_DEMAND_STREETS = "demand_streets"
+  FIELD_DEMAND_DIRECTIONS = "demand_directions"
+  FIELD_DEMAND_POSITIONS = "demand_positions"
   FIELD_DEMAND_PURPOSE = "demand_purpose"   # JSON array string
   FIELD_DEMAND_INDUSTRY = "demand_industry" # JSON array string
   FIELD_DEMAND_VIEW = "demand_view"         # JSON array string
+
   FIELD_DEMAND_TITLE = "demand_title"
   FIELD_DEMAND_NOTE = "demand_note"
   FIELD_CUSTOMER_NAME = "customer_name"
@@ -59,26 +71,42 @@ module ::SitetorListing
     FIELD_FLOOR_AREA_FROM,
     FIELD_FLOOR_AREA_TO,
   ].freeze
-  DEMAND_STRING_FIELDS = [
-    FIELD_DEMAND_TYPE,
+
+  # Field lưu JSON array (nhiều giá trị) trên topic nhu cầu
+  DEMAND_MULTI_FIELDS = [
+    FIELD_DEMAND_PROPERTY_TYPES,
+    FIELD_DEMAND_PROVINCES,
+    FIELD_DEMAND_DISTRICTS,
+    FIELD_DEMAND_WARDS,
+    FIELD_DEMAND_STREETS,
+    FIELD_DEMAND_DIRECTIONS,
+    FIELD_DEMAND_POSITIONS,
     FIELD_DEMAND_PURPOSE,
     FIELD_DEMAND_INDUSTRY,
     FIELD_DEMAND_VIEW,
-    FIELD_DEMAND_TITLE,
-    FIELD_DEMAND_NOTE,
-    FIELD_CUSTOMER_NAME,
-    FIELD_CUSTOMER_PHONE,
-    FIELD_CONTACT_EMAIL,
   ].freeze
 
-  # Form "Cập nhật thông tin nhu cầu" (/listing/demand-info): param API → custom field
+  DEMAND_STRING_FIELDS = (
+    [FIELD_DEMAND_TYPE] + DEMAND_MULTI_FIELDS +
+      [
+        FIELD_DEMAND_TITLE,
+        FIELD_DEMAND_NOTE,
+        FIELD_CUSTOMER_NAME,
+        FIELD_CUSTOMER_PHONE,
+        FIELD_CONTACT_EMAIL,
+      ]
+  ).freeze
+
+  # Form "Cập nhật thông tin nhu cầu" (/listing/demand-info): param API → custom field.
+  # Param multi dùng số nhiều (provinces/directions...) và ghi field demand_* riêng
+  # — KHÔNG còn ghi đè listing_* của tin rao.
   DEMAND_UPDATABLE = {
     "demand_type" => FIELD_DEMAND_TYPE,
-    "listing_type" => FIELD_TYPE,
-    "province" => FIELD_PROVINCE,
-    "district" => FIELD_DISTRICT,
-    "ward" => FIELD_WARD,
-    "street" => FIELD_STREET,
+    "property_types" => FIELD_DEMAND_PROPERTY_TYPES,
+    "provinces" => FIELD_DEMAND_PROVINCES,
+    "districts" => FIELD_DEMAND_DISTRICTS,
+    "wards" => FIELD_DEMAND_WARDS,
+    "streets" => FIELD_DEMAND_STREETS,
     "budget_from" => FIELD_BUDGET_FROM,
     "budget_to" => FIELD_BUDGET_TO,
     "area_from" => FIELD_AREA_FROM,
@@ -91,8 +119,8 @@ module ::SitetorListing
     "purpose" => FIELD_DEMAND_PURPOSE,
     "industry" => FIELD_DEMAND_INDUSTRY,
     "view" => FIELD_DEMAND_VIEW,
-    "direction" => FIELD_DIRECTION,
-    "position" => FIELD_POSITION,
+    "directions" => FIELD_DEMAND_DIRECTIONS,
+    "positions" => FIELD_DEMAND_POSITIONS,
     "title" => FIELD_DEMAND_TITLE,
     "note" => FIELD_DEMAND_NOTE,
     "customer_name" => FIELD_CUSTOMER_NAME,
@@ -100,10 +128,11 @@ module ::SitetorListing
     "contact_email" => FIELD_CONTACT_EMAIL,
   }.freeze
 
-  # Field địa chỉ trên topic NHU CẦU lưu dạng JSON array (một nhu cầu có thể
-  # nhắm nhiều khu vực) — topic listing vẫn lưu chuỗi đơn, không ảnh hưởng
-  # facets/filter vì facets chỉ quét category listing.
-  DEMAND_ADDRESS_MULTI = %w[province district ward street].freeze
+  # Param nào của form nhu cầu là multi-value (JSON array) → cast/serialize theo mảng
+  DEMAND_MULTI_PARAMS = %w[
+    property_types provinces districts wards streets directions positions
+    purpose industry view
+  ].freeze
 
   # Danh sách chọn cố định của form nhu cầu — giá trị TRÙNG TÊN TAG trên site
   # (nhóm H Nhu cầu sử dụng / E Hướng / D Vị trí) để đồng bộ tag SEO song song
@@ -223,14 +252,23 @@ after_initialize do
 
   module ::SitetorListing
     module Extract
-      # parse cả listing (Bán/Cho thuê) lẫn nhu cầu (Cần mua/Cần thuê) —
-      # dữ liệu nhu cầu phục vụ plugin discourse-sitetor-mapping (/mapping)
+      # Gate hook: parse cả tin rao (Bán/Cho thuê) lẫn nhu cầu (Cần mua/Cần thuê)
       def self.category_ids
         ids = (
           SiteSetting.sitetor_listing_categories.split("|") +
             SiteSetting.sitetor_listing_demand_categories.split("|")
         ).map(&:to_i).uniq
         SitetorListing.with_descendants(ids)
+      end
+
+      def self.demand_category_ids
+        SitetorListing.with_descendants(
+          SiteSetting.sitetor_listing_demand_categories.split("|").map(&:to_i),
+        )
+      end
+
+      def self.demand?(topic)
+        demand_category_ids.include?(topic.category_id)
       end
 
       def self.from_post(post)
@@ -243,10 +281,14 @@ after_initialize do
       end
 
       # gán field từ text — dùng chung cho hook realtime và rake backfill.
-      # Topic chủ nhà đã nhập tay (FIELD_MANUAL) thì parser không ghi đè.
+      # Topic chủ đã nhập tay (FIELD_MANUAL) thì parser không ghi đè.
+      # Tin rao → listing_* (giá trị đơn); nhu cầu → demand_* (JSON array).
       def self.apply(topic, text)
         return false if topic.custom_fields[FIELD_MANUAL] == "true"
+        demand?(topic) ? apply_demand(topic, text) : apply_listing(topic, text)
+      end
 
+      def self.apply_listing(topic, text)
         parsed = SitetorListing::Parser.parse(text, usd_rate: SiteSetting.sitetor_listing_usd_rate)
         topic.custom_fields[FIELD_PRICE] = parsed[:price] if parsed[:price]
         topic.custom_fields[FIELD_FRONTAGE] = parsed[:frontage] if parsed[:frontage]
@@ -265,6 +307,28 @@ after_initialize do
         topic.custom_fields[FIELD_PROVINCE] = addr[:province] if addr[:province]
 
         parsed.values.any? || attrs.values.any? || addr.values.any?
+      end
+
+      # Nhu cầu: auto-seed loại BĐS + khu vực thành mảng 1 phần tử (để /mapping
+      # có dữ liệu ngay). Chỉ set field còn trống — không thu hẹp list chủ đã chọn.
+      # Giá/mặt tiền/diện tích của nhu cầu là RANGE nên không suy từ 1 giá trị parse.
+      def self.apply_demand(topic, text)
+        attrs = SitetorListing::Attributes.extract(text)
+        addr = SitetorListing::AddressMatcher.default.match(text)
+        seeds = {
+          FIELD_DEMAND_PROPERTY_TYPES => attrs[:type],
+          FIELD_DEMAND_STREETS => addr[:street],
+          FIELD_DEMAND_WARDS => addr[:ward],
+          FIELD_DEMAND_DISTRICTS => addr[:district],
+          FIELD_DEMAND_PROVINCES => addr[:province],
+        }
+        touched = false
+        seeds.each do |field, value|
+          next if value.blank? || topic.custom_fields[field].present?
+          topic.custom_fields[field] = [value].to_json
+          touched = true
+        end
+        touched
       end
     end
   end
