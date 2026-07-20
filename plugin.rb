@@ -402,6 +402,8 @@ after_initialize do
     # Trang /demand (Cầu): API lọc nhu cầu + facets
     get "/demand-filter" => "demand_filter#index"
     get "/demand-facets" => "demand_filter#facets"
+    # Matching Cung↔Cầu: tin rao khớp 1 nhu cầu (mine=1 → tin của chính user)
+    get "/demand-matches/:topic_id" => "demand_filter#matches"
     # SEO filter pages: /listing/ban/nha-mat-pho/quan-3/duong-vo-van-tan
     get "/*filters" => "page#seo", format: false
   end

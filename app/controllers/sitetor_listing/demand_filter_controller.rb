@@ -41,7 +41,73 @@ module SitetorListing
       }
     end
 
+    # GET /listing/demand-matches/:topic_id.json
+    # Matching Cung↔Cầu: 1 nhu cầu là BỘ LỌC LƯU SẴN nên tin rao (Cung) khớp =
+    # chạy chính TopicFilter trên category listing với tiêu chí của nhu cầu
+    # (ngân sách→giá, diện tích, mặt tiền là range; loại BĐS/khu vực/hướng/vị
+    # trí là multi IN). mine=true → chỉ tin của người đang đăng nhập (dùng cho
+    # nút "Giới thiệu": gợi ý tin phù hợp trong kho của chính họ).
+    def matches
+      demand = Topic.find_by(id: params[:topic_id].to_i) || raise(Discourse::NotFound)
+      guardian.ensure_can_see!(demand)
+
+      per = params[:limit].present? ? params[:limit].to_i.clamp(1, 50) : 20
+      f = demand_criteria(demand)
+      listing_ids = SitetorListing.with_descendants(
+        SiteSetting.sitetor_listing_categories.split("|").map(&:to_i),
+      )
+      result = SitetorListing::TopicFilter.run(f, listing_ids, per: per)
+
+      topics = result[:topics]
+      if ActiveModel::Type::Boolean.new.cast(params[:mine]) && current_user
+        topics = topics.where(user_id: current_user.id)
+      end
+
+      render json: {
+        demand_id: demand.id,
+        total: result[:total],
+        criteria: public_criteria(f),
+        topics: topics.map { |t| SitetorListing::TopicFilter.serialize(t) },
+      }
+    end
+
     private
+
+    # tiêu chí lọc listing suy ra từ field demand_* của nhu cầu
+    def demand_criteria(demand)
+      cf = demand.custom_fields
+      pl = ->(field) { SitetorListing::DemandFilter.parse_list(cf[field]) }
+      {
+        price_min: cf[SitetorListing::FIELD_BUDGET_FROM],
+        price_max: cf[SitetorListing::FIELD_BUDGET_TO],
+        area_min: cf[SitetorListing::FIELD_AREA_FROM],
+        area_max: cf[SitetorListing::FIELD_AREA_TO],
+        frontage_min: cf[SitetorListing::FIELD_FRONTAGE_FROM],
+        frontage_max: cf[SitetorListing::FIELD_FRONTAGE_TO],
+        multi: {
+          "type" => pl.call(SitetorListing::FIELD_DEMAND_PROPERTY_TYPES),
+          "province" => pl.call(SitetorListing::FIELD_DEMAND_PROVINCES),
+          "district" => pl.call(SitetorListing::FIELD_DEMAND_DISTRICTS),
+          "ward" => pl.call(SitetorListing::FIELD_DEMAND_WARDS),
+          "street" => pl.call(SitetorListing::FIELD_DEMAND_STREETS),
+          "direction" => pl.call(SitetorListing::FIELD_DEMAND_DIRECTIONS),
+          "position" => pl.call(SitetorListing::FIELD_DEMAND_POSITIONS),
+        },
+        page: 0,
+      }
+    end
+
+    def public_criteria(f)
+      {
+        price_min: f[:price_min]&.to_i,
+        price_max: f[:price_max]&.to_i,
+        area_min: f[:area_min]&.to_f,
+        area_max: f[:area_max]&.to_f,
+        frontage_min: f[:frontage_min]&.to_f,
+        frontage_max: f[:frontage_max]&.to_f,
+        multi: f[:multi].reject { |_, v| v.blank? },
+      }
+    end
 
     def demand_base_ids
       SiteSetting.sitetor_listing_demand_categories.split("|").map(&:to_i)
