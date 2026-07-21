@@ -1,6 +1,6 @@
 en:
   site_settings:
-    sitetor_listing_enabled: "Enable Sitetor Listing plugin"
+    sitetor_listing_enabled: "Enable Sitetor Listing Filter plugin"
     sitetor_listing_categories: "Category IDs of LISTINGS (Bán/Cho thuê) to index for property filtering (pipe-separated)"
     sitetor_listing_demand_categories: "Category IDs of DEMANDS (Cần mua/Cần thuê) that show the recommend-listing button (pipe-separated)"
     sitetor_listing_usd_rate: "USD to VND exchange rate used when parsing USD prices"

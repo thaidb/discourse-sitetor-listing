@@ -12,6 +12,12 @@ module SitetorListing
       render "default/empty"
     end
 
+    # /demand — full page load: render app shell rỗng để Ember boot; route
+    # "demand" phía client đảm nhận phần còn lại (danh sách + bộ lọc nhu cầu).
+    def demand_index
+      render "default/empty"
+    end
+
     def seo
       segments = params[:filters].to_s.split("/").reject(&:blank?)
       parsed = SitetorListing::SeoSlugs.default.parse(segments, category_slugs: category_slug_map)
@@ -24,7 +30,66 @@ module SitetorListing
       end
     end
 
+    # /demand/<slug> — landing page 1 ngành nghề (vd /demand/thoi-trang). Bot nhận
+    # HTML thật (title/H1/meta/canonical + danh sách nhu cầu lọc theo tag ngành);
+    # người thật nhận app shell → route "demand-tag" gắn filter industry theo slug.
+    def demand_tag
+      name = SitetorListing::DemandFilter.industry_name_for_slug(params[:slug])
+      raise Discourse::NotFound unless name
+
+      if use_crawler_layout?
+        render html: demand_crawler_html(name).html_safe, layout: false
+      else
+        render "default/empty"
+      end
+    end
+
     private
+
+    def demand_crawler_html(name)
+      per = SiteSetting.sitetor_listing_page_size
+      ids = SitetorListing.with_descendants(
+        SiteSetting.sitetor_listing_demand_categories.split("|").map(&:to_i),
+      )
+      result = SitetorListing::DemandFilter.run({ multi: { "industry" => [name] }, page: 0 }, ids, per: per)
+
+      pretty = name.tr("-", " ")
+      title = "Nhu cầu thuê & mua mặt bằng #{pretty}"
+      canonical = "#{Discourse.base_url}/demand/#{SitetorListing::DemandFilter.slug_for(name)}"
+      e = ->(s) { ERB::Util.html_escape(s.to_s) }
+
+      items = result[:topics].map do |t|
+        row = SitetorListing::DemandFilter.serialize(t)
+        budget = row[:budget_from] || row[:budget_to]
+        price = budget ? (budget >= 1e9 ? "#{(budget / 1e9.to_f).round(2)} tỷ" : "#{(budget / 1e6.to_f).round(1)} triệu") : nil
+        region = (row[:districts] + row[:provinces]).uniq.join(" · ")
+        meta = [row[:demand_type], region.presence, price, row[:area_from] && "#{row[:area_from]} m²"].compact.join(" · ")
+        "<li><a href=\"#{Discourse.base_url}/t/#{e.call(t.slug)}/#{t.id}\">#{e.call(t.title)}</a>#{meta.present? ? " — #{e.call(meta)}" : ""}</li>"
+      end
+
+      description = "#{title} — #{result[:total]} nhu cầu tìm thuê/mua mặt bằng #{pretty} mới nhất trên #{SiteSetting.title}."
+
+      <<~HTML
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+          <meta charset="utf-8">
+          <title>#{e.call(title)} | #{e.call(SiteSetting.title)}</title>
+          <meta name="description" content="#{e.call(description)}">
+          <link rel="canonical" href="#{e.call(canonical)}">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+        <body>
+          <h1>#{e.call(title)}</h1>
+          <p>#{e.call(result[:total])} nhu cầu</p>
+          <ul>
+            #{items.join("\n")}
+          </ul>
+          <p><a href="#{Discourse.base_url}/demand">Tất cả nhu cầu</a></p>
+        </body>
+        </html>
+      HTML
+    end
 
     def base_categories
       @base_categories ||=

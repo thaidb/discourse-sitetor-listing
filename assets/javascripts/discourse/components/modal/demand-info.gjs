@@ -22,7 +22,7 @@ const DEMAND_CATEGORY_TYPES = [
   { id: 3344, slug: "can-thue-nha-dat", demandType: "Cần thuê" },
   { id: 3698, slug: "can-mua-bat-dong-san", demandType: "Cần mua" },
 ];
-// giữ đồng bộ với SitetorListing::SeoSlugs::TYPES (dùng chung field listing_type)
+// giữ đồng bộ với SitetorListing::SeoSlugs::TYPES
 const TYPES = [
   "Nhà mặt phố", "Nhà hẻm", "Văn phòng", "Kho, nhà xưởng",
   "Căn hộ, chung cư", "Bán đất", "Tầng thương mại",
@@ -31,24 +31,15 @@ const PURPOSES = ["Để-ở", "Kinh-doanh", "Đầu-tư"]; // tag group H. Nhu 
 const DIRECTIONS = ["Đông", "Tây", "Nam", "Bắc", "Đông-Bắc", "Đông-Nam", "Tây-Bắc", "Tây-Nam"]; // tag group E. Hướng
 const POSITIONS = ["Hẻm", "Khu-compound", "Mặt-tiền", "Ngõ", "Nội-bộ"]; // tag group D. Vị trí
 // tag group I. Nghành nghề kinh doanh
-const INDUSTRIES = [
-  "24h", "Anh-ngữ", "Cafe", "Cây-xăng", "Chuỗi", "Cửa-hàng-thực-phẩm",
-  "Điện-thoại", "Game", "Giải-trí", "Giao-hàng", "Giày-dép", "Giặt-ủi",
-  "Gym", "Hầm-rựu", "Karaoke", "Mắt-kính", "Ngân-hàng", "Nha-khoa",
-  "Nhà-hàng", "Nhà-sách", "Nhà-thuốc", "Nội-thất", "Phòng-công-chứng",
-  "Phòng-khám", "Phòng-thu", "Pizza", "Quán-ăn", "Quán-nhậu", "Salon",
-  "Sang", "Showroom", "Siêu-thị", "Spa", "Thời-trang", "Thức-ăn-nhanh",
-  "Tiệm-net", "Trà-sữa", "Trái-cây", "Trang-sức", "Trường-học",
-  "Văn-phòng", "Xe-hơi", "Xe-máy", "Xì-gà",
-];
 // tag group Views
 const VIEWS = [
   "View-công-viên", "View-hồ", "View-hồ-bơi", "View-không-gian-mở",
   "View-nội-khu", "View-núi", "View-sông", "View-toà-nhà",
 ];
 
-// Form chủ topic nhập thông tin NHU CẦU (Cần mua/Cần thuê) có cấu trúc.
-// Custom field là nguồn chuẩn; server đồng bộ thêm tag SEO song song.
+// Form chủ topic nhập thông tin NHU CẦU (Cần mua/Cần thuê) — 1 bộ lọc lưu sẵn:
+// range (ngân sách/diện tích/mặt tiền) + multi (nhiều loại/khu vực/hướng/vị trí).
+// Custom field demand_* là nguồn chuẩn; server đồng bộ thêm tag SEO song song.
 export default class DemandInfoModal extends Component {
   @service siteSettings;
   @service site;
@@ -58,7 +49,7 @@ export default class DemandInfoModal extends Component {
   @tracked saved = false;
 
   @tracked fDemandType = "";
-  @tracked fType = "";
+  @tracked fPropertyTypes = [];
   @tracked fProvince = [];
   @tracked fDistrict = [];
   @tracked fStreet = [];
@@ -75,8 +66,8 @@ export default class DemandInfoModal extends Component {
   @tracked fPurpose = [];
   @tracked fIndustry = [];
   @tracked fView = [];
-  @tracked fDirection = "";
-  @tracked fPosition = "";
+  @tracked fDirections = [];
+  @tracked fPositions = [];
   @tracked fTitle = "";
   @tracked fNote = "";
   @tracked fCustomerName = "";
@@ -87,13 +78,20 @@ export default class DemandInfoModal extends Component {
   @tracked facets = {};
 
   demandTypes = DEMAND_TYPES;
-  types = TYPES;
-  directions = DIRECTIONS;
-  positions = POSITIONS;
 
+  propertyTypeOptions = TYPES.map((v) => ({ value: v }));
   purposeOptions = PURPOSES.map((v) => ({ value: v }));
-  industryOptions = INDUSTRIES.map((v) => ({ value: v }));
+  // Ngành nghề lấy TỪ site.sitetor_business_models (tag group "Mô hình kinh
+  // doanh", nguồn chân lý chung với sidebar + filter /demand). Thêm/bớt 1 tag
+  // trong tag group ở admin là tự động hiện ở cả 3 nơi — không hard-code nữa.
+  get industryOptions() {
+    return (this.site.sitetor_business_models || []).map((m) => ({
+      value: m.name,
+    }));
+  }
   viewOptions = VIEWS.map((v) => ({ value: v }));
+  directionOptions = DIRECTIONS.map((v) => ({ value: v }));
+  positionOptions = POSITIONS.map((v) => ({ value: v }));
 
   constructor() {
     super(...arguments);
@@ -113,10 +111,10 @@ export default class DemandInfoModal extends Component {
       this.fBudgetTo = info.budget_to ? String(info.budget_to / rate) : "";
       // chưa lưu demand_type → auto-default theo cây category (Cần thuê/Cần mua)
       this.fDemandType = info.demand_type || this.demandTypeFromCategory();
-      this.fType = info.listing_type || "";
-      this.fProvince = info.province || [];
-      this.fDistrict = info.district || [];
-      this.fStreet = info.street || [];
+      this.fPropertyTypes = info.property_types || [];
+      this.fProvince = info.provinces || [];
+      this.fDistrict = info.districts || [];
+      this.fStreet = info.streets || [];
       this.fAreaFrom = info.area_from ? String(info.area_from) : "";
       this.fAreaTo = info.area_to ? String(info.area_to) : "";
       this.fFrontageFrom = info.frontage_from ? String(info.frontage_from) : "";
@@ -127,8 +125,8 @@ export default class DemandInfoModal extends Component {
       this.fPurpose = info.purpose || [];
       this.fIndustry = info.industry || [];
       this.fView = info.view || [];
-      this.fDirection = info.direction || "";
-      this.fPosition = info.position || "";
+      this.fDirections = info.directions || [];
+      this.fPositions = info.positions || [];
       this.fTitle = info.title || "";
       this.fNote = info.note || "";
       this.fCustomerName = info.customer_name || "";
@@ -233,10 +231,10 @@ export default class DemandInfoModal extends Component {
         type: "POST",
         data: {
           demand_type: this.fDemandType,
-          listing_type: this.fType,
-          province: JSON.stringify(this.fProvince),
-          district: JSON.stringify(this.fDistrict),
-          street: JSON.stringify(this.fStreet),
+          property_types: JSON.stringify(this.fPropertyTypes),
+          provinces: JSON.stringify(this.fProvince),
+          districts: JSON.stringify(this.fDistrict),
+          streets: JSON.stringify(this.fStreet),
           budget_from: this.toVnd(this.fBudgetFrom),
           budget_to: this.toVnd(this.fBudgetTo),
           area_from: this.fAreaFrom,
@@ -249,8 +247,8 @@ export default class DemandInfoModal extends Component {
           purpose: JSON.stringify(this.fPurpose),
           industry: JSON.stringify(this.fIndustry),
           view: JSON.stringify(this.fView),
-          direction: this.fDirection,
-          position: this.fPosition,
+          directions: JSON.stringify(this.fDirections),
+          positions: JSON.stringify(this.fPositions),
           title: this.fTitle,
           note: this.fNote,
           customer_name: this.fCustomerName,
@@ -293,12 +291,12 @@ export default class DemandInfoModal extends Component {
 
             <div class="edit-info-field">
               <label>{{i18n "sitetor_listing.product_type"}}</label>
-              <select {{on "change" (fn this.updateField "fType")}}>
-                <option value="" selected={{eq this.fType ""}}>—</option>
-                {{#each this.types as |v|}}
-                  <option value={{v}} selected={{eq this.fType v}}>{{v}}</option>
-                {{/each}}
-              </select>
+              <MultiSelect
+                @label={{i18n "sitetor_listing.product_type"}}
+                @options={{this.propertyTypeOptions}}
+                @selected={{this.fPropertyTypes}}
+                @onChange={{fn this.updateMulti "fPropertyTypes"}}
+              />
             </div>
 
             <div class="edit-info-field">
@@ -398,22 +396,22 @@ export default class DemandInfoModal extends Component {
 
             <div class="edit-info-field">
               <label>{{i18n "sitetor_listing.direction"}}</label>
-              <select {{on "change" (fn this.updateField "fDirection")}}>
-                <option value="" selected={{eq this.fDirection ""}}>—</option>
-                {{#each this.directions as |v|}}
-                  <option value={{v}} selected={{eq this.fDirection v}}>{{v}}</option>
-                {{/each}}
-              </select>
+              <MultiSelect
+                @label={{i18n "sitetor_listing.direction"}}
+                @options={{this.directionOptions}}
+                @selected={{this.fDirections}}
+                @onChange={{fn this.updateMulti "fDirections"}}
+              />
             </div>
 
             <div class="edit-info-field">
               <label>{{i18n "sitetor_listing.position"}}</label>
-              <select {{on "change" (fn this.updateField "fPosition")}}>
-                <option value="" selected={{eq this.fPosition ""}}>—</option>
-                {{#each this.positions as |v|}}
-                  <option value={{v}} selected={{eq this.fPosition v}}>{{v}}</option>
-                {{/each}}
-              </select>
+              <MultiSelect
+                @label={{i18n "sitetor_listing.position"}}
+                @options={{this.positionOptions}}
+                @selected={{this.fPositions}}
+                @onChange={{fn this.updateMulti "fPositions"}}
+              />
             </div>
 
             <div class="edit-info-field">

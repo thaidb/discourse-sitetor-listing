@@ -30,7 +30,9 @@ module ::SitetorListing
   FIELD_MANUAL = "listing_manual"
 
   # Field NHU CẦU (topic Cần mua/Cần thuê trong sitetor_listing_demand_categories).
-  # Loại BĐS/hướng/vị trí/địa chỉ DÙNG CHUNG field listing_* (đối xứng để ghép tin /mapping).
+  # Nhu cầu là 1 BỘ LỌC LƯU SẴN: range (ngân sách/diện tích/mặt tiền) + multi
+  # (nhiều tỉnh/quận/đường, nhiều hướng, nhiều loại) — THUỘC SỞ HỮU demand, KHÔNG
+  # dùng chung listing_* (listing_* là giá trị ĐƠN của tin rao, phục vụ filter/facet).
   FIELD_DEMAND_TYPE = "demand_type"
   FIELD_BUDGET_FROM = "budget_from"
   FIELD_BUDGET_TO = "budget_to"
@@ -41,9 +43,19 @@ module ::SitetorListing
   FIELD_FLOOR_AREA_FROM = "floor_area_from"
   FIELD_FLOOR_AREA_TO = "floor_area_to"
   FIELD_NUMBER_FLOOR = "number_floor"
+
+  # Field phân loại/khu vực của nhu cầu — mỗi field lưu JSON array (multi-value).
+  FIELD_DEMAND_PROPERTY_TYPES = "demand_property_types" # loại BĐS (nhiều)
+  FIELD_DEMAND_PROVINCES = "demand_provinces"
+  FIELD_DEMAND_DISTRICTS = "demand_districts"
+  FIELD_DEMAND_WARDS = "demand_wards"
+  FIELD_DEMAND_STREETS = "demand_streets"
+  FIELD_DEMAND_DIRECTIONS = "demand_directions"
+  FIELD_DEMAND_POSITIONS = "demand_positions"
   FIELD_DEMAND_PURPOSE = "demand_purpose"   # JSON array string
   FIELD_DEMAND_INDUSTRY = "demand_industry" # JSON array string
   FIELD_DEMAND_VIEW = "demand_view"         # JSON array string
+
   FIELD_DEMAND_TITLE = "demand_title"
   FIELD_DEMAND_NOTE = "demand_note"
   FIELD_CUSTOMER_NAME = "customer_name"
@@ -59,26 +71,42 @@ module ::SitetorListing
     FIELD_FLOOR_AREA_FROM,
     FIELD_FLOOR_AREA_TO,
   ].freeze
-  DEMAND_STRING_FIELDS = [
-    FIELD_DEMAND_TYPE,
+
+  # Field lưu JSON array (nhiều giá trị) trên topic nhu cầu
+  DEMAND_MULTI_FIELDS = [
+    FIELD_DEMAND_PROPERTY_TYPES,
+    FIELD_DEMAND_PROVINCES,
+    FIELD_DEMAND_DISTRICTS,
+    FIELD_DEMAND_WARDS,
+    FIELD_DEMAND_STREETS,
+    FIELD_DEMAND_DIRECTIONS,
+    FIELD_DEMAND_POSITIONS,
     FIELD_DEMAND_PURPOSE,
     FIELD_DEMAND_INDUSTRY,
     FIELD_DEMAND_VIEW,
-    FIELD_DEMAND_TITLE,
-    FIELD_DEMAND_NOTE,
-    FIELD_CUSTOMER_NAME,
-    FIELD_CUSTOMER_PHONE,
-    FIELD_CONTACT_EMAIL,
   ].freeze
 
-  # Form "Cập nhật thông tin nhu cầu" (/listing/demand-info): param API → custom field
+  DEMAND_STRING_FIELDS = (
+    [FIELD_DEMAND_TYPE] + DEMAND_MULTI_FIELDS +
+      [
+        FIELD_DEMAND_TITLE,
+        FIELD_DEMAND_NOTE,
+        FIELD_CUSTOMER_NAME,
+        FIELD_CUSTOMER_PHONE,
+        FIELD_CONTACT_EMAIL,
+      ]
+  ).freeze
+
+  # Form "Cập nhật thông tin nhu cầu" (/listing/demand-info): param API → custom field.
+  # Param multi dùng số nhiều (provinces/directions...) và ghi field demand_* riêng
+  # — KHÔNG còn ghi đè listing_* của tin rao.
   DEMAND_UPDATABLE = {
     "demand_type" => FIELD_DEMAND_TYPE,
-    "listing_type" => FIELD_TYPE,
-    "province" => FIELD_PROVINCE,
-    "district" => FIELD_DISTRICT,
-    "ward" => FIELD_WARD,
-    "street" => FIELD_STREET,
+    "property_types" => FIELD_DEMAND_PROPERTY_TYPES,
+    "provinces" => FIELD_DEMAND_PROVINCES,
+    "districts" => FIELD_DEMAND_DISTRICTS,
+    "wards" => FIELD_DEMAND_WARDS,
+    "streets" => FIELD_DEMAND_STREETS,
     "budget_from" => FIELD_BUDGET_FROM,
     "budget_to" => FIELD_BUDGET_TO,
     "area_from" => FIELD_AREA_FROM,
@@ -91,8 +119,8 @@ module ::SitetorListing
     "purpose" => FIELD_DEMAND_PURPOSE,
     "industry" => FIELD_DEMAND_INDUSTRY,
     "view" => FIELD_DEMAND_VIEW,
-    "direction" => FIELD_DIRECTION,
-    "position" => FIELD_POSITION,
+    "directions" => FIELD_DEMAND_DIRECTIONS,
+    "positions" => FIELD_DEMAND_POSITIONS,
     "title" => FIELD_DEMAND_TITLE,
     "note" => FIELD_DEMAND_NOTE,
     "customer_name" => FIELD_CUSTOMER_NAME,
@@ -100,10 +128,11 @@ module ::SitetorListing
     "contact_email" => FIELD_CONTACT_EMAIL,
   }.freeze
 
-  # Field địa chỉ trên topic NHU CẦU lưu dạng JSON array (một nhu cầu có thể
-  # nhắm nhiều khu vực) — topic listing vẫn lưu chuỗi đơn, không ảnh hưởng
-  # facets/filter vì facets chỉ quét category listing.
-  DEMAND_ADDRESS_MULTI = %w[province district ward street].freeze
+  # Param nào của form nhu cầu là multi-value (JSON array) → cast/serialize theo mảng
+  DEMAND_MULTI_PARAMS = %w[
+    property_types provinces districts wards streets directions positions
+    purpose industry view
+  ].freeze
 
   # Danh sách chọn cố định của form nhu cầu — giá trị TRÙNG TÊN TAG trên site
   # (nhóm H Nhu cầu sử dụng / E Hướng / D Vị trí) để đồng bộ tag SEO song song
@@ -140,6 +169,7 @@ require_relative "lib/sitetor_listing/parser"
 require_relative "lib/sitetor_listing/attributes"
 require_relative "lib/sitetor_listing/address_matcher"
 require_relative "lib/sitetor_listing/topic_filter"
+require_relative "lib/sitetor_listing/demand_filter"
 require_relative "lib/sitetor_listing/seo_slugs"
 require_relative "lib/sitetor_listing/discovery_filters"
 
@@ -217,20 +247,91 @@ after_initialize do
     object.custom_fields[SitetorListing::FIELD_DIRECTION]
   end
 
+  # Field NHU CẦU cho card mặc định của category Mapping (topic list): ngân sách
+  # + diện tích (range) + khu vực (JSON array parse sẵn) để theme vẽ trong
+  # .topic-card__stats. Chỉ preload đủ field cần cho card, tránh nặng list.
+  DEMAND_LIST_FIELDS = [
+    SitetorListing::FIELD_DEMAND_TYPE,
+    SitetorListing::FIELD_BUDGET_FROM,
+    SitetorListing::FIELD_BUDGET_TO,
+    SitetorListing::FIELD_AREA_FROM,
+    SitetorListing::FIELD_AREA_TO,
+    SitetorListing::FIELD_FRONTAGE_FROM,
+    SitetorListing::FIELD_FRONTAGE_TO,
+    SitetorListing::FIELD_FLOOR_AREA_FROM,
+    SitetorListing::FIELD_FLOOR_AREA_TO,
+    SitetorListing::FIELD_DEMAND_PROPERTY_TYPES,
+    SitetorListing::FIELD_DEMAND_PROVINCES,
+    SitetorListing::FIELD_DEMAND_DISTRICTS,
+  ]
+  DEMAND_LIST_FIELDS.each { |f| TopicList.preloaded_custom_fields << f }
+  add_to_serializer(:topic_list_item, :demand_type) do
+    object.custom_fields[SitetorListing::FIELD_DEMAND_TYPE]
+  end
+  add_to_serializer(:topic_list_item, :demand_budget_from) do
+    object.custom_fields[SitetorListing::FIELD_BUDGET_FROM]&.to_i
+  end
+  add_to_serializer(:topic_list_item, :demand_budget_to) do
+    object.custom_fields[SitetorListing::FIELD_BUDGET_TO]&.to_i
+  end
+  add_to_serializer(:topic_list_item, :demand_area_from) do
+    object.custom_fields[SitetorListing::FIELD_AREA_FROM]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_area_to) do
+    object.custom_fields[SitetorListing::FIELD_AREA_TO]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_frontage_from) do
+    object.custom_fields[SitetorListing::FIELD_FRONTAGE_FROM]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_frontage_to) do
+    object.custom_fields[SitetorListing::FIELD_FRONTAGE_TO]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_floor_area_from) do
+    object.custom_fields[SitetorListing::FIELD_FLOOR_AREA_FROM]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_floor_area_to) do
+    object.custom_fields[SitetorListing::FIELD_FLOOR_AREA_TO]&.to_f
+  end
+  add_to_serializer(:topic_list_item, :demand_property_types) do
+    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_PROPERTY_TYPES])
+  end
+  add_to_serializer(:topic_list_item, :demand_provinces) do
+    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_PROVINCES])
+  end
+  add_to_serializer(:topic_list_item, :demand_districts) do
+    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_DISTRICTS])
+  end
+
+  # Preload danh sách "Mô hình kinh doanh" (tag ngành nghề + slug) vào Site JSON
+  # để sidebar section dựng link /demand/<slug> đồng bộ, không cần ajax riêng.
+  # Chỉ tên+slug (rẻ: pluck tag group) — KHÔNG đếm để không nặng Site serializer.
+  add_to_serializer(:site, :sitetor_business_models) do
+    SitetorListing::DemandFilter.industry_links
+  end
+
   # Tự động parse khi có topic mới / sửa bài đầu trong các category cấu hình
   on(:post_edited) { |post| SitetorListing::Extract.from_post(post) if post.is_first_post? }
   on(:topic_created) { |topic, _opts, _user| SitetorListing::Extract.from_post(topic.first_post) if topic.first_post }
 
   module ::SitetorListing
     module Extract
-      # parse cả listing (Bán/Cho thuê) lẫn nhu cầu (Cần mua/Cần thuê) —
-      # dữ liệu nhu cầu phục vụ plugin discourse-sitetor-mapping (/mapping)
+      # Gate hook: parse cả tin rao (Bán/Cho thuê) lẫn nhu cầu (Cần mua/Cần thuê)
       def self.category_ids
         ids = (
           SiteSetting.sitetor_listing_categories.split("|") +
             SiteSetting.sitetor_listing_demand_categories.split("|")
         ).map(&:to_i).uniq
         SitetorListing.with_descendants(ids)
+      end
+
+      def self.demand_category_ids
+        SitetorListing.with_descendants(
+          SiteSetting.sitetor_listing_demand_categories.split("|").map(&:to_i),
+        )
+      end
+
+      def self.demand?(topic)
+        demand_category_ids.include?(topic.category_id)
       end
 
       def self.from_post(post)
@@ -243,10 +344,14 @@ after_initialize do
       end
 
       # gán field từ text — dùng chung cho hook realtime và rake backfill.
-      # Topic chủ nhà đã nhập tay (FIELD_MANUAL) thì parser không ghi đè.
+      # Topic chủ đã nhập tay (FIELD_MANUAL) thì parser không ghi đè.
+      # Tin rao → listing_* (giá trị đơn); nhu cầu → demand_* (JSON array).
       def self.apply(topic, text)
         return false if topic.custom_fields[FIELD_MANUAL] == "true"
+        demand?(topic) ? apply_demand(topic, text) : apply_listing(topic, text)
+      end
 
+      def self.apply_listing(topic, text)
         parsed = SitetorListing::Parser.parse(text, usd_rate: SiteSetting.sitetor_listing_usd_rate)
         topic.custom_fields[FIELD_PRICE] = parsed[:price] if parsed[:price]
         topic.custom_fields[FIELD_FRONTAGE] = parsed[:frontage] if parsed[:frontage]
@@ -266,6 +371,28 @@ after_initialize do
 
         parsed.values.any? || attrs.values.any? || addr.values.any?
       end
+
+      # Nhu cầu: auto-seed loại BĐS + khu vực thành mảng 1 phần tử (để /mapping
+      # có dữ liệu ngay). Chỉ set field còn trống — không thu hẹp list chủ đã chọn.
+      # Giá/mặt tiền/diện tích của nhu cầu là RANGE nên không suy từ 1 giá trị parse.
+      def self.apply_demand(topic, text)
+        attrs = SitetorListing::Attributes.extract(text)
+        addr = SitetorListing::AddressMatcher.default.match(text)
+        seeds = {
+          FIELD_DEMAND_PROPERTY_TYPES => attrs[:type],
+          FIELD_DEMAND_STREETS => addr[:street],
+          FIELD_DEMAND_WARDS => addr[:ward],
+          FIELD_DEMAND_DISTRICTS => addr[:district],
+          FIELD_DEMAND_PROVINCES => addr[:province],
+        }
+        touched = false
+        seeds.each do |field, value|
+          next if value.blank? || topic.custom_fields[field].present?
+          topic.custom_fields[field] = [value].to_json
+          touched = true
+        end
+        touched
+      end
     end
   end
 
@@ -281,6 +408,7 @@ after_initialize do
 
   require_relative "app/controllers/sitetor_listing/topic_info_controller"
   require_relative "app/controllers/sitetor_listing/demand_info_controller"
+  require_relative "app/controllers/sitetor_listing/demand_filter_controller"
 
   SitetorListing::Engine.routes.draw do
     get "/" => "page#index"
@@ -290,9 +418,22 @@ after_initialize do
     put "/topic-info" => "topic_info#update"
     get "/demand-info/:topic_id" => "demand_info#show"
     post "/demand-info/:topic_id" => "demand_info#update"
+    # Trang /demand (Cầu): API lọc nhu cầu + facets
+    get "/demand-filter" => "demand_filter#index"
+    get "/demand-facets" => "demand_filter#facets"
+    # Matching Cung↔Cầu: tin rao khớp 1 nhu cầu (mine=1 → tin của chính user)
+    get "/demand-matches/:topic_id" => "demand_filter#matches"
     # SEO filter pages: /listing/ban/nha-mat-pho/quan-3/duong-vo-van-tan
     get "/*filters" => "page#seo", format: false
   end
 
-  Discourse::Application.routes.append { mount ::SitetorListing::Engine, at: "/listing" }
+  # /listing = trang Cung (tin rao). /demand = trang Cầu (nhu cầu) — full-page
+  # load render app shell để Ember boot route "demand". Không đụng /mapping của
+  # plugin cũ (cutover về sau ở Phase 4).
+  Discourse::Application.routes.append do
+    mount ::SitetorListing::Engine, at: "/listing"
+    get "/demand" => "sitetor_listing/page#demand_index"
+    # Landing SEO 1 ngành nghề: /demand/thoi-trang, /demand/ngan-hang ...
+    get "/demand/:slug" => "sitetor_listing/page#demand_tag"
+  end
 end

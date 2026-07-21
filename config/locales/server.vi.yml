@@ -1,6 +1,6 @@
 vi:
   site_settings:
-    sitetor_listing_enabled: "Bật plugin Sitetor Listing"
+    sitetor_listing_enabled: "Bật plugin Sitetor Listing Filter"
     sitetor_listing_categories: "ID các category TIN ĐĂNG (Bán/Cho thuê) được lọc tại /listing (ngăn cách bằng |)"
     sitetor_listing_demand_categories: "ID các category NHU CẦU (Cần mua/Cần thuê) hiện nút giới thiệu (ngăn cách bằng |)"
     sitetor_listing_usd_rate: "Tỷ giá USD→VND khi parse giá USD"
