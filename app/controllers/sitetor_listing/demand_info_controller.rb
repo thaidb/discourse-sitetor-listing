@@ -15,14 +15,10 @@ module SitetorListing
     INTEGER_PARAMS = %w[budget_from budget_to number_floor].freeze
     FLOAT_PARAMS = %w[area_from area_to frontage_from frontage_to floor_area_from floor_area_to].freeze
     MULTI_PARAMS = SitetorListing::DEMAND_MULTI_PARAMS
-    # multi param có danh sách giá trị hợp lệ cố định (giữ đúng vocab == tên tag);
-    # provinces/districts/wards/streets/industry/view là free-text (lấy từ facets/site).
-    MULTI_ALLOWED = {
-      "purpose" => SitetorListing::DEMAND_PURPOSES,
-      "directions" => SitetorListing::DEMAND_DIRECTIONS,
-      "positions" => SitetorListing::DEMAND_POSITIONS,
-      "property_types" => SitetorListing::SeoSlugs::TYPES,
-    }.freeze
+    # Chiều enum (tập đóng) lưu bằng TAG, KHÔNG custom field: đọc/ghi qua tag group
+    # (DemandFilter.enum_tag_names). Còn lại provinces/districts/wards/streets là khu
+    # vực free-text (JSON custom field).
+    ENUM_TAG_PARAMS = %w[property_types positions directions view purpose industry].freeze
     # demand_type là single-select (loại giao dịch)
     SELECT_PARAMS = { "demand_type" => SitetorListing::DEMAND_TYPES }.freeze
 
@@ -42,14 +38,18 @@ module SitetorListing
       topic = find_topic
       guardian.ensure_can_edit!(topic)
 
+      # Field params (range/khu vực/liên hệ/demand_type) → custom field.
       SitetorListing::DEMAND_UPDATABLE.each do |param, field|
+        next if ENUM_TAG_PARAMS.include?(param)
         next unless params.key?(param)
         write_field(topic, field, cast_param(param, params[param]))
       end
 
       topic.custom_fields[SitetorListing::FIELD_MANUAL] = "true"
       topic.save_custom_fields(true)
-      sync_tags(topic)
+
+      # Enum params → TAG (thay thế trong các nhóm được submit, giữ tag ngoài nhóm).
+      write_enum_tags(topic)
 
       render json: info_for(topic)
     end
@@ -76,14 +76,13 @@ module SitetorListing
         value = raw.presence&.to_f
         value && value > 0 ? value : nil
       elsif MULTI_PARAMS.include?(param)
+        # còn lại chỉ là khu vực (provinces/districts/wards/streets) — free-text.
         list =
           parse_multi(raw)
             .map { |v| v.to_s.strip.slice(0, TEXT_MAX) }
             .reject(&:blank?)
             .uniq
             .first(MULTI_MAX)
-        allowed = MULTI_ALLOWED[param]
-        list &= allowed if allowed
         list.present? ? list.to_json : nil
       elsif (allowed = SELECT_PARAMS[param])
         value = raw.presence
@@ -102,35 +101,40 @@ module SitetorListing
       []
     end
 
-    def multi_values(topic, field)
-      parse_multi(topic.custom_fields[field])
-    end
+    # Ghi chiều enum bằng TAG (nguồn chân lý). Ngữ nghĩa "thay-thế-trong-nhóm":
+    # với mỗi nhóm enum được submit, bỏ hết tag cũ của nhóm đó rồi đặt đúng lựa
+    # chọn mới; tag ngoài các nhóm submit (nhóm khác, tag tự do) GIỮ NGUYÊN.
+    # Quy tắc mặc định: chọn "Nhà-mặt-tiền" ⇒ kèm Vị trí "Mặt-tiền".
+    def write_enum_tags(topic)
+      managed = ENUM_TAG_PARAMS.select { |p| params.key?(p) }
+      return if managed.empty?
 
-    # Đồng bộ tag SEO song song — custom field là nguồn chuẩn, tag chỉ là hình
-    # chiếu (nhóm H mục đích / I ngành nghề / E hướng / D vị trí). Chỉ append.
-    def sync_tags(topic)
-      new_names =
-        multi_values(topic, SitetorListing::FIELD_DEMAND_PURPOSE) +
-          multi_values(topic, SitetorListing::FIELD_DEMAND_INDUSTRY) +
-          multi_values(topic, SitetorListing::FIELD_DEMAND_DIRECTIONS) +
-          multi_values(topic, SitetorListing::FIELD_DEMAND_POSITIONS)
-      new_names =
-        new_names
-          .map { |n| n.to_s.tr(" ", "-") } # "Đông Nam" → tag "Đông-Nam"
-          .reject(&:blank?)
-          .uniq
-      return if new_names.empty?
+      chosen = []
+      vocab = []
+      managed.each do |param|
+        names = SitetorListing::DemandFilter.enum_tag_names(param)
+        vocab |= names
+        sel = parse_multi(params[param]).map { |v| v.to_s.strip }.reject(&:blank?)
+        chosen |= (sel & names).first(MULTI_MAX) # chỉ nhận tag hợp lệ trong group
+      end
 
+      if chosen.include?("Nhà-mặt-tiền") && !chosen.include?("Mặt-tiền") &&
+           SitetorListing::DemandFilter.enum_tag_names("positions").include?("Mặt-tiền")
+        chosen << "Mặt-tiền"
+      end
+
+      keep = topic.tags.map(&:name) - vocab # tag ngoài các nhóm submit
       DiscourseTagging.tag_topic_by_names(
         topic,
         Guardian.new(Discourse.system_user),
-        (topic.tags.pluck(:name) + new_names).uniq,
-        append: true,
+        (keep + chosen).uniq,
+        append: false, # thay toàn bộ = keep + chosen (đã gồm mọi tag cần giữ)
       )
     end
 
     def info_for(topic)
       cf = topic.custom_fields
+      tnames = topic.tags.map(&:name)
       out = {
         topic_id: topic.id,
         can_edit: guardian.can_edit?(topic),
@@ -138,7 +142,9 @@ module SitetorListing
       }
       SitetorListing::DEMAND_UPDATABLE.each do |param, field|
         out[param] =
-          if MULTI_PARAMS.include?(param)
+          if ENUM_TAG_PARAMS.include?(param)
+            tnames & SitetorListing::DemandFilter.enum_tag_names(param)
+          elsif MULTI_PARAMS.include?(param)
             parse_multi(cf[field])
           elsif INTEGER_PARAMS.include?(param)
             cf[field]&.to_i

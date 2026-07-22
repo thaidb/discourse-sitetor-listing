@@ -50,13 +50,17 @@ module SitetorListing
         scope = by_string(scope, SitetorListing::FIELD_DEMAND_TYPE, Array(f[:demand_type]))
       end
 
+      # Enum (Loại BĐS/Vị trí/Hướng/View/Mục đích/Ngành) khớp bằng TAP (giao tập);
+      # khu vực (tỉnh/quận/phường/đường) vẫn là JSON custom field.
+      enum = enum_param_groups.keys
       (f[:multi] || {}).each do |param, values|
-        next if param == "industry" # ngành nghề khớp bằng TAG, không phải custom field
-        field = JSON_MULTI[param]
-        scope = json_any(scope, field, values) if field && values.present?
+        next if values.blank?
+        if enum.include?(param)
+          scope = by_tags(scope, values)
+        elsif (field = JSON_MULTI[param])
+          scope = json_any(scope, field, values)
+        end
       end
-      industry = (f[:multi] || {})["industry"]
-      scope = by_tags(scope, industry) if industry.present?
 
       total = scope.count
       page = f[:page].to_i
@@ -168,15 +172,61 @@ module SitetorListing
       end
     end
 
+    # ── Enum-là-tag ────────────────────────────────────────────────────────────
+    # Các chiều "tập đóng" (Loại BĐS/Vị trí/Hướng/View/Mục đích/Ngành) lưu bằng
+    # TAG (không phải custom field). param (số nhiều, khớp JSON_MULTI) → tên tag
+    # group chứa vocab của chiều đó. Ngành nghề dùng chung group với sidebar.
+    def enum_param_groups
+      {
+        "property_types" => "B. Loại BĐS",
+        "positions" => "D. Vị trí",
+        "directions" => "E. Hướng",
+        "view" => "Views",
+        "purpose" => "H. Nhu cầu sử dụng",
+        "industry" => SiteSetting.sitetor_listing_industry_tag_group,
+      }
+    end
+
+    def enum_group(param)
+      name = enum_param_groups[param]
+      name && TagGroup.find_by(name: name)
+    end
+
+    # Tên tag "thật" (bỏ synonym) của 1 chiều enum, theo thứ tự id. Cache theo
+    # param, CHỈ khi non-empty (tránh kẹt rỗng qua unicorn preload_app fork —
+    # xem industry_tags). Group hiếm khi đổi → an toàn cho vòng đời worker.
+    def enum_tag_names(param)
+      @enum_names ||= {}
+      cached = @enum_names[param]
+      return cached if cached && !cached.empty?
+      @enum_names[param] =
+        (enum_group(param)&.tags&.where(target_tag_id: nil)&.order(:id)&.pluck(:name) || [])
+    end
+
+    def enum_tag_ids(param)
+      @enum_ids ||= {}
+      cached = @enum_ids[param]
+      return cached if cached && !cached.empty?
+      @enum_ids[param] =
+        (enum_group(param)&.tags&.where(target_tag_id: nil)&.order(:id)&.pluck(:id) || [])
+    end
+
+    # {param => [tên tag,...]} cho MỌI chiều enum trừ ngành nghề (ngành nghề đã có
+    # site.sitetor_business_models riêng). Dùng đổ option dropdown của form.
+    def enum_tag_options
+      enum_param_groups.keys.reject { |k| k == "industry" }
+                       .each_with_object({}) { |param, h| h[param] = enum_tag_names(param) }
+    end
+
     # Lọc topic có BẤT KỲ tag ngành nghề nào đã chọn (subquery → không nhân dòng).
     def by_tags(scope, tag_names)
       tt = TopicTag.joins(:tag).where(tags: { name: tag_names }).select(:topic_id)
       scope.where(id: tt)
     end
 
-    # Facet ngành nghề: đếm topic trong scope theo từng tag của group.
-    def tag_facet(topic_ids)
-      ids = industry_tag_ids
+    # Facet theo tag: đếm topic trong scope theo từng tag trong tập ids đã cho
+    # (mặc định = ngành nghề). Dùng cho mọi chiều enum (truyền enum_tag_ids(param)).
+    def tag_facet(topic_ids, ids = industry_tag_ids)
       return [] if ids.empty?
       TopicTag
         .where(topic_id: topic_ids, tag_id: ids)
@@ -259,6 +309,7 @@ module SitetorListing
 
     def serialize(t)
       cf = t.custom_fields
+      tnames = t.tags.map(&:name) # đã preload :tags
       {
         id: t.id,
         title: t.title,
@@ -278,17 +329,18 @@ module SitetorListing
         floor_area_from: cf[SitetorListing::FIELD_FLOOR_AREA_FROM]&.to_f,
         floor_area_to: cf[SitetorListing::FIELD_FLOOR_AREA_TO]&.to_f,
         number_floor: cf[SitetorListing::FIELD_NUMBER_FLOOR]&.to_i,
-        property_types: parse_list(cf[SitetorListing::FIELD_DEMAND_PROPERTY_TYPES]),
+        # Khu vực = JSON custom field (địa lý, không phải enum).
         provinces: parse_list(cf[SitetorListing::FIELD_DEMAND_PROVINCES]),
         districts: parse_list(cf[SitetorListing::FIELD_DEMAND_DISTRICTS]),
         wards: parse_list(cf[SitetorListing::FIELD_DEMAND_WARDS]),
         streets: parse_list(cf[SitetorListing::FIELD_DEMAND_STREETS]),
-        directions: parse_list(cf[SitetorListing::FIELD_DEMAND_DIRECTIONS]),
-        positions: parse_list(cf[SitetorListing::FIELD_DEMAND_POSITIONS]),
-        purpose: parse_list(cf[SitetorListing::FIELD_DEMAND_PURPOSE]),
-        # ngành nghề = tag của topic thuộc group ngành nghề (đã preload :tags)
-        industry: t.tags.map(&:name) & industry_tag_names,
-        view: parse_list(cf[SitetorListing::FIELD_DEMAND_VIEW]),
+        # Enum = giao tag topic với vocab của từng group (nguồn chân lý là tag).
+        property_types: tnames & enum_tag_names("property_types"),
+        directions: tnames & enum_tag_names("directions"),
+        positions: tnames & enum_tag_names("positions"),
+        purpose: tnames & enum_tag_names("purpose"),
+        view: tnames & enum_tag_names("view"),
+        industry: tnames & industry_tag_names,
       }
     end
 

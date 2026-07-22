@@ -22,20 +22,10 @@ const DEMAND_CATEGORY_TYPES = [
   { id: 3344, slug: "can-thue-nha-dat", demandType: "Cần thuê" },
   { id: 3698, slug: "can-mua-bat-dong-san", demandType: "Cần mua" },
 ];
-// giữ đồng bộ với SitetorListing::SeoSlugs::TYPES
-const TYPES = [
-  "Nhà mặt phố", "Nhà hẻm", "Văn phòng", "Kho, nhà xưởng",
-  "Căn hộ, chung cư", "Bán đất", "Tầng thương mại",
-];
-const PURPOSES = ["Để-ở", "Kinh-doanh", "Đầu-tư"]; // tag group H. Nhu cầu sử dụng
-const DIRECTIONS = ["Đông", "Tây", "Nam", "Bắc", "Đông-Bắc", "Đông-Nam", "Tây-Bắc", "Tây-Nam"]; // tag group E. Hướng
-const POSITIONS = ["Hẻm", "Khu-compound", "Mặt-tiền", "Ngõ", "Nội-bộ"]; // tag group D. Vị trí
-// tag group I. Nghành nghề kinh doanh
-// tag group Views
-const VIEWS = [
-  "View-công-viên", "View-hồ", "View-hồ-bơi", "View-không-gian-mở",
-  "View-nội-khu", "View-núi", "View-sông", "View-toà-nhà",
-];
+// Các chiều enum (Loại BĐS / Mục đích / Hướng / Vị trí / View) KHÔNG hard-code
+// nữa — option đổ từ site.sitetor_enum_tags (preload từ tag group ở backend,
+// một nguồn chân lý chung với bộ lọc + parser). Thêm/bớt tag trong group ở admin
+// là tự động phản ánh vào form. Xem các getter *Options bên dưới.
 
 // Form chủ topic nhập thông tin NHU CẦU (Cần mua/Cần thuê) — 1 bộ lọc lưu sẵn:
 // range (ngân sách/diện tích/mặt tiền) + multi (nhiều loại/khu vực/hướng/vị trí).
@@ -79,8 +69,29 @@ export default class DemandInfoModal extends Component {
 
   demandTypes = DEMAND_TYPES;
 
-  propertyTypeOptions = TYPES.map((v) => ({ value: v }));
-  purposeOptions = PURPOSES.map((v) => ({ value: v }));
+  // Option enum từ site.sitetor_enum_tags — {property_types, positions,
+  // directions, view, purpose} là mảng tên tag của từng group. Bọc thành
+  // {value} cho MultiSelect. Giá trị lưu == tên tag (server ghi thẳng).
+  enumOptions(key) {
+    return ((this.site.sitetor_enum_tags || {})[key] || []).map((v) => ({
+      value: v,
+    }));
+  }
+  get propertyTypeOptions() {
+    return this.enumOptions("property_types");
+  }
+  get purposeOptions() {
+    return this.enumOptions("purpose");
+  }
+  get viewOptions() {
+    return this.enumOptions("view");
+  }
+  get directionOptions() {
+    return this.enumOptions("directions");
+  }
+  get positionOptions() {
+    return this.enumOptions("positions");
+  }
   // Ngành nghề lấy TỪ site.sitetor_business_models (tag group "Mô hình kinh
   // doanh", nguồn chân lý chung với sidebar + filter /demand). Thêm/bớt 1 tag
   // trong tag group ở admin là tự động hiện ở cả 3 nơi — không hard-code nữa.
@@ -89,9 +100,6 @@ export default class DemandInfoModal extends Component {
       value: m.name,
     }));
   }
-  viewOptions = VIEWS.map((v) => ({ value: v }));
-  directionOptions = DIRECTIONS.map((v) => ({ value: v }));
-  positionOptions = POSITIONS.map((v) => ({ value: v }));
 
   constructor() {
     super(...arguments);

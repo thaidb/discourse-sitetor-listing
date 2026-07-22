@@ -292,8 +292,9 @@ after_initialize do
   add_to_serializer(:topic_list_item, :demand_floor_area_to) do
     object.custom_fields[SitetorListing::FIELD_FLOOR_AREA_TO]&.to_f
   end
+  # Loại BĐS của nhu cầu = TAG (giao tag topic với vocab group "B. Loại BĐS").
   add_to_serializer(:topic_list_item, :demand_property_types) do
-    SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_PROPERTY_TYPES])
+    object.tags.map(&:name) & SitetorListing::DemandFilter.enum_tag_names("property_types")
   end
   add_to_serializer(:topic_list_item, :demand_provinces) do
     SitetorListing::DemandFilter.parse_list(object.custom_fields[SitetorListing::FIELD_DEMAND_PROVINCES])
@@ -307,6 +308,13 @@ after_initialize do
   # Chỉ tên+slug (rẻ: pluck tag group) — KHÔNG đếm để không nặng Site serializer.
   add_to_serializer(:site, :sitetor_business_models) do
     SitetorListing::DemandFilter.industry_links
+  end
+
+  # Preload vocab các chiều enum (Loại BĐS/Vị trí/Hướng/View/Mục đích) từ tag
+  # group vào Site JSON → form "Cập nhật nhu cầu" đổ option dropdown từ đây (một
+  # nguồn chân lý, không hardcode lệch tag). Ngành nghề đã có sitetor_business_models.
+  add_to_serializer(:site, :sitetor_enum_tags) do
+    SitetorListing::DemandFilter.enum_tag_options
   end
 
   # Tự động parse khi có topic mới / sửa bài đầu trong các category cấu hình
@@ -372,14 +380,28 @@ after_initialize do
         parsed.values.any? || attrs.values.any? || addr.values.any?
       end
 
-      # Nhu cầu: auto-seed loại BĐS + khu vực thành mảng 1 phần tử (để /mapping
-      # có dữ liệu ngay). Chỉ set field còn trống — không thu hẹp list chủ đã chọn.
-      # Giá/mặt tiền/diện tích của nhu cầu là RANGE nên không suy từ 1 giá trị parse.
+      # Chữ hiển thị (Attributes.extract) → tên TAG chuẩn. Loại BĐS + Vị trí phải
+      # map tay (value có dấu cách ≠ slug tag). "Tầng thương mại"/"Nhà hẻm" bỏ
+      # (không tạo tag). Hướng chỉ đổi dấu cách→gạch.
+      DEMAND_TYPE_TAG = {
+        "Nhà mặt phố" => "Nhà-mặt-tiền", "Văn phòng" => "Văn-phòng",
+        "Kho, nhà xưởng" => "Kho-xưởng", "Căn hộ, chung cư" => "Căn-hộ-chung-cư",
+        "Bán đất" => "Đất",
+      }.freeze
+      DEMAND_POSITION_TAG = {
+        "Khu Compound" => "Khu-compound", "Đường Nội Bộ" => "Nội-bộ",
+        "Mặt tiền" => "Mặt-tiền", "Hẻm" => "Hẻm",
+      }.freeze
+
+      # Nhu cầu: auto-seed khu vực (JSON field) + enum (TAG). Chỉ seed khi còn
+      # trống — không thu hẹp/đè lựa chọn chủ đã nhập. Giá/mặt tiền/diện tích là
+      # RANGE nên không suy từ 1 giá trị parse.
       def self.apply_demand(topic, text)
         attrs = SitetorListing::Attributes.extract(text)
         addr = SitetorListing::AddressMatcher.default.match(text)
+
+        # Khu vực → JSON custom field (địa lý, không phải enum).
         seeds = {
-          FIELD_DEMAND_PROPERTY_TYPES => attrs[:type],
           FIELD_DEMAND_STREETS => addr[:street],
           FIELD_DEMAND_WARDS => addr[:ward],
           FIELD_DEMAND_DISTRICTS => addr[:district],
@@ -391,7 +413,38 @@ after_initialize do
           topic.custom_fields[field] = [value].to_json
           touched = true
         end
+
+        # Enum (Loại BĐS/Vị trí/Hướng) → TAG song song.
+        add = demand_enum_tags(topic, attrs)
+        if add.any?
+          DiscourseTagging.tag_topic_by_names(
+            topic, Guardian.new(Discourse.system_user), add, append: true
+          )
+          touched = true
+        end
         touched
+      end
+
+      # Tag enum cần thêm từ attrs parse. Chỉ seed cho chiều mà topic CHƯA có tag
+      # nào trong group đó (không đè lựa chọn sẵn). Quy tắc mặc định: chọn
+      # "Nhà-mặt-tiền" ⇒ kèm Vị trí "Mặt-tiền".
+      def self.demand_enum_tags(topic, attrs)
+        existing = topic.tags.map(&:name)
+        empty = ->(param) { (existing & SitetorListing::DemandFilter.enum_tag_names(param)).empty? }
+        out = []
+
+        if empty.call("property_types") && (tag = DEMAND_TYPE_TAG[attrs[:type]])
+          out << tag
+          out << "Mặt-tiền" if tag == "Nhà-mặt-tiền"
+        end
+        if empty.call("positions") && (tag = DEMAND_POSITION_TAG[attrs[:position]])
+          out << tag
+        end
+        if empty.call("directions") && attrs[:direction].present?
+          out << attrs[:direction].tr(" ", "-")
+        end
+
+        (out - existing).uniq
       end
     end
   end

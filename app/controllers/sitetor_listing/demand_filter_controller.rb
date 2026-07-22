@@ -24,20 +24,23 @@ module SitetorListing
     # GET /listing/demand-facets.json
     def facets
       topic_ids = Topic.visible.listable_topics.where(category_id: demand_ids(nil)).select(:id)
+      # Khu vực (JSON custom field) đếm bằng json_facet; enum (tag) đếm bằng
+      # tag_facet với tập tag của group tương ứng.
       jf = ->(field) { SitetorListing::DemandFilter.json_facet(topic_ids, field) }
+      tf = ->(param) { SitetorListing::DemandFilter.tag_facet(topic_ids, SitetorListing::DemandFilter.enum_tag_ids(param)) }
 
       render json: {
         demand_type: SitetorListing::DemandFilter.string_facet(topic_ids, SitetorListing::FIELD_DEMAND_TYPE),
-        property_types: jf.call(SitetorListing::FIELD_DEMAND_PROPERTY_TYPES),
+        property_types: tf.call("property_types"),
         province: jf.call(SitetorListing::FIELD_DEMAND_PROVINCES),
         district: jf.call(SitetorListing::FIELD_DEMAND_DISTRICTS),
         ward: jf.call(SitetorListing::FIELD_DEMAND_WARDS),
         street: jf.call(SitetorListing::FIELD_DEMAND_STREETS),
-        direction: jf.call(SitetorListing::FIELD_DEMAND_DIRECTIONS),
-        position: jf.call(SitetorListing::FIELD_DEMAND_POSITIONS),
-        purpose: jf.call(SitetorListing::FIELD_DEMAND_PURPOSE),
+        direction: tf.call("directions"),
+        position: tf.call("positions"),
+        purpose: tf.call("purpose"),
         industry: SitetorListing::DemandFilter.tag_facet(topic_ids),
-        view: jf.call(SitetorListing::FIELD_DEMAND_VIEW),
+        view: tf.call("view"),
       }
     end
 
